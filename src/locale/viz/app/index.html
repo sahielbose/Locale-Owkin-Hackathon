@@ -165,8 +165,11 @@
         data: state.payload.units,
         getPosition: function (u) { return [u.x, u.y]; },
         getFillColor: function (u) { return colorForUnit(u, idxByType); },
-        getRadius: 4, radiusUnits: "pixels", radiusMinPixels: 2, radiusMaxPixels: 10,
-        stroked: true, getLineColor: [10, 12, 16], lineWidthMinPixels: 0.5,
+        // Radius in world units (microns) so cells grow as you scroll in, like a real
+        // tissue section. Clamped in pixels so they stay visible fully zoomed out.
+        getRadius: 4, radiusUnits: "common", radiusMinPixels: 1.2, radiusMaxPixels: 90,
+        stroked: true, getLineColor: [10, 12, 16], lineWidthUnits: "common",
+        getLineWidth: 0.4, lineWidthMinPixels: 0.3, lineWidthMaxPixels: 3,
         pickable: true, updateTriggers: { getFillColor: state.mode }
       });
     }
