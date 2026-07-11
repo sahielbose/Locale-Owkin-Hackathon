@@ -134,9 +134,9 @@ def test_all_tools_report_a_backend():
     tools.get_map_payload(tools.list_samples()[0].image_id)
     status = tools.backend_status()
     assert status["list_samples"] == "real"
-    # engine is unimplemented, so these run the fallback today
-    assert status["find_niches"] == "fallback"
-    assert status["compute_enrichment"] == "fallback"
+    # Lane A engine is implemented now, so these run the real engine
+    assert status["find_niches"] == "real"
+    assert status["compute_enrichment"] == "real"
 
 
 # --- interpret.py -----------------------------------------------------------------
