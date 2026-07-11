@@ -39,6 +39,14 @@
   .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
   .hint { color: var(--muted); font-size: 11px; margin-top: 14px; line-height: 1.5; }
   #renderer-badge { font-size: 11px; color: var(--muted); }
+  #deck-canvas { transition: opacity .08s linear; }
+  #cell3d-layer { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0;
+    transition: opacity .08s linear; }
+  #cell3d-canvas { width: 100%; height: 100%; display: block; }
+  #zoom-hud { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
+    z-index: 6; background: #0b0d11cc; border: 1px solid var(--border); border-radius: 20px;
+    padding: 6px 14px; font-size: 12px; color: var(--muted); display: none; white-space: nowrap; }
+  #zoom-hud b { color: var(--ink); }
 </style>
 </head>
 <body>
@@ -60,7 +68,9 @@
   <div id="stage">
     <canvas id="canvas2d" style="display:none"></canvas>
     <div id="deck-canvas"></div>
+    <div id="cell3d-layer"><canvas id="cell3d-canvas"></canvas></div>
     <div id="tooltip"></div>
+    <div id="zoom-hud"></div>
   </div>
   <aside>
     <h2>Legend</h2>
@@ -111,6 +121,42 @@
     if (state.mode === "cell_type") return hexToRgb(cellTypeColor(u.cell_type, idxByType[u.cell_type] || 0));
     if (u.niche_id == null) return [120, 120, 120];
     return hexToRgb(nicheColor(u.niche_id));
+  }
+
+  // ---- powers-of-ten zoom: tissue -> single cell --------------------------------
+  // As deck.gl zoom grows, one cell fills more pixels. Past ENTER_PX we crossfade the
+  // flat scatter into the real 3D cell model (assets/model/), reaching it at FULL_PX.
+  var CELL_UM = 8, ENTER_PX = 90, FULL_PX = 420;
+  function smoothstep(a, b, x) { var t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
+  function nearestCell(tx, ty) {
+    var u = state.payload && state.payload.units, best = null, bd = Infinity;
+    if (!u) return null;
+    for (var i = 0; i < u.length; i++) {
+      var dx = u[i].x - tx, dy = u[i].y - ty, dd = dx * dx + dy * dy;
+      if (dd < bd) { bd = dd; best = u[i]; }
+    }
+    return best;
+  }
+  function updateLOD(vs) {
+    if (!vs) return;
+    // OrthographicView zoom may be a scalar or [zoomX, zoomY]; normalize.
+    var z = Array.isArray(vs.zoom) ? vs.zoom[0] : vs.zoom;
+    if (!isFinite(z)) return;
+    var cellPx = CELL_UM * Math.pow(2, z);
+    var t = smoothstep(ENTER_PX, FULL_PX, cellPx);
+    document.getElementById("deck-canvas").style.opacity = String(1 - 0.92 * t);
+    document.getElementById("cell3d-layer").style.opacity = String(t);
+    var hud = document.getElementById("zoom-hud");
+    if (t > 0.02) {
+      if (window.Cell3D) { window.Cell3D.ensure(); window.Cell3D.setProgress(t); }
+      var tg = vs.target || [0, 0], cell = nearestCell(tg[0], tg[1]);
+      var name = cell ? cell.cell_type : "cell";
+      hud.style.display = "block";
+      hud.innerHTML = (t > 0.85 ? "cell level &middot; <b>" : "zooming in &middot; <b>") + name + "</b>";
+    } else {
+      hud.style.display = "none";
+      if (window.Cell3D) window.Cell3D.setProgress(0);
+    }
   }
 
   function buildLegend() {
@@ -181,6 +227,7 @@
         initialViewState: { target: [cx, cy, 0], zoom: zoom },
         controller: true,
         layers: [layer()],
+        onViewStateChange: function (e) { updateLOD(e.viewState); },
         onHover: function (info) {
           if (info.object) {
             tooltip.style.display = "block";
@@ -306,6 +353,83 @@
   document.head.appendChild(s);
   boot();
 })();
+</script>
+
+<!-- Cell-level 3D layer: the real sourced model, revealed by deep zoom (assets/model/). -->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.168.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.168.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+let inited = false, renderer, scene, camera, root, progress = 0;
+const mats = [];
+
+function resize() {
+  const layer = document.getElementById("cell3d-layer");
+  const w = layer.clientWidth, h = layer.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+
+function ensure() {
+  if (inited) return;
+  inited = true;
+  const canvas = document.getElementById("cell3d-canvas");
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  scene = new THREE.Scene(); // transparent background so it composites over the tissue
+
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+  camera = new THREE.PerspectiveCamera(45, 1, 0.01, 5000);
+  camera.position.set(0, 0, 3);
+  const key = new THREE.DirectionalLight(0xffffff, 2.0); key.position.set(3, 4, 5); scene.add(key);
+  const fill = new THREE.DirectionalLight(0x8fb4ff, 0.6); fill.position.set(-4, -2, -3); scene.add(fill);
+  root = new THREE.Group(); scene.add(root);
+  resize();
+  window.addEventListener("resize", resize);
+
+  new GLTFLoader().load("assets/model/scene.gltf", (g) => {
+    const model = g.scene;
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    model.position.sub(center);
+    const radius = Math.max(size.x, size.y, size.z) * 0.5 || 1;
+    const dist = radius / Math.sin((camera.fov * Math.PI) / 180 / 2);
+    camera.position.set(0, 0, dist * 1.25);
+    camera.near = dist / 100; camera.far = dist * 100;
+    camera.updateProjectionMatrix();
+    model.traverse((o) => {
+      if (o.isMesh && o.material) { o.material.transparent = true; mats.push(o.material); }
+    });
+    root.add(model);
+  });
+
+  renderer.setAnimationLoop(() => {
+    if (progress <= 0.001) return;
+    root.rotation.y += 0.003;
+    root.scale.setScalar(0.88 + 0.12 * progress); // slight rush-in as you reach the cell
+    for (const m of mats) m.opacity = progress;
+    renderer.render(scene, camera);
+  });
+}
+
+function setProgress(t) { progress = t; }
+window.Cell3D = { ensure, setProgress };
 </script>
 </body>
 </html>
