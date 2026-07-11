@@ -187,4 +187,4 @@ python -m src.locale.mcp_server.server    # run the MCP server
 
 ## Status
 
-Fresh, empty repo. Everything below is TODO. Scaffold first, then the three lanes fill in their subsystems against the schema and mock data.
+Scaffold, Lane B (MCP server), and Lane C (viz) have landed. Lane A (analysis engine) is now implemented: per-image spatial graph, neighborhood enrichment, niche discovery (neighborhood-composition k-means), characterization + marker programs, niche-to-survival association (Cox/KM, BH-ranked), and the three validation checks all run against `data/mock.h5ad` and return the schema objects. Point `LOCALE_DATA` (or drop in `data/locale.h5ad`) to run the same engine on the real cohort.
