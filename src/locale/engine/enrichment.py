@@ -26,9 +26,13 @@ def compute_enrichment(adata: AnnData, scope: str) -> EnrichmentResult:
 
     TODO(Lane A):
         1. ensure the spatial graph exists (build it per image_id if not).
-        2. squidpy.gr.nhood_enrichment(adata, cluster_key="cell_type").
-        3. read adata.uns["cell_type_nhood_enrichment"]["zscore"] and ["pvalue"].
-        4. pack into EnrichmentResult(scope=scope, cell_types=<category order>, ...).
+        2. squidpy.gr.nhood_enrichment(adata, cluster_key="cell_type", seed=0).
+        3. read adata.uns["cell_type_nhood_enrichment"]; note squidpy stores
+           "zscore" and "count" here, NOT a "pvalue" key. Derive the p-values
+           yourself from the permutation null (e.g. pass n_perms and compute a
+           two-sided empirical p per pair from the permuted count distribution).
+        4. pack into EnrichmentResult(scope=scope, cell_types=<category order>,
+           zscores=..., pvalues=...).
     """
     raise NotImplementedError(
         "compute_enrichment: wire squidpy.gr.nhood_enrichment -> EnrichmentResult."

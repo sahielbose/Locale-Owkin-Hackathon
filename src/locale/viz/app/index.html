@@ -84,7 +84,8 @@
     Macrophage: "#ff7f0e", Fibroblast: "#2ca02c", Endothelial: "#9467bd"
   };
   var NICHE_COLORS = ["#8c2d04", "#238b45", "#2171b5", "#cc4c02", "#6a51a3", "#00688B"];
-  var FALLBACK = ["#e6194b","#3cb44b","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c"];
+  // Mirror payload.py _FALLBACK_COLORS exactly (same length + order).
+  var FALLBACK = ["#e6194b","#3cb44b","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe","#008080"];
 
   var state = { payload: null, mode: "cell_type", deck: null, view: null };
   var stage = document.getElementById("stage");
@@ -115,15 +116,21 @@
     var el = document.getElementById("legend");
     el.innerHTML = "";
     var items = [];
-    if (state.mode === "cell_type") {
-      categories(state.payload.units, "cell_type").forEach(function (ct, i) {
+    var p = state.payload;
+    // Honor the MapPayload.legend contract when its color_mode matches what we are
+    // showing (payload.py builds it with the same palettes we render dots with, so
+    // colors line up, and it carries the real niche names). If the user toggled to
+    // a mode the payload was not generated for, derive a legend from the data.
+    if (p.legend && Object.keys(p.legend).length && p.color_mode === state.mode) {
+      Object.keys(p.legend).forEach(function (label) { items.push([label, p.legend[label]]); });
+    } else if (state.mode === "cell_type") {
+      categories(p.units, "cell_type").forEach(function (ct, i) {
         items.push([ct, cellTypeColor(ct, i)]);
       });
     } else {
-      var names = state.payload.niche_names || {};
-      var ids = categories(state.payload.units, "niche_id").filter(function (v) { return v != null; });
+      var ids = categories(p.units, "niche_id").filter(function (v) { return v != null; });
       ids.sort(function (a, b) { return a - b; });
-      ids.forEach(function (id) { items.push([names[id] || ("niche " + id), nicheColor(id)]); });
+      ids.forEach(function (id) { items.push([("niche " + id), nicheColor(id)]); });
     }
     items.forEach(function (pair) {
       var row = document.createElement("div"); row.className = "legend-item";
@@ -246,8 +253,11 @@
   }
 
   function setPayload(p) {
-    // Accept a bare MapPayload, or {cell_type:..., niche:...} bundles are not used here.
     state.payload = p;
+    // New data (e.g. a different image via the picker) has its own coordinate range,
+    // so drop any existing deck and let render() recreate it with a fresh fitted
+    // camera. Mode toggles do NOT come through here, so pan/zoom is preserved there.
+    if (state.deck) { try { state.deck.finalize(); } catch (e) {} state.deck = null; }
     if (p.color_mode === "niche" || p.color_mode === "cell_type") state.mode = p.color_mode;
     syncToggle();
     render();

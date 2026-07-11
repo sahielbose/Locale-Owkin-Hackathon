@@ -231,9 +231,13 @@ def build_mock() -> ad.AnnData:
     cell_types = np.array(cell_type_col, dtype=object)
     n = cell_types.shape[0]
 
-    # raw -> arcsinh(cofactor 5) -> z-score per marker (matches build_anndata.py)
+    # Same pipeline as build_anndata.preprocess_intensities with its defaults:
+    # arcsinh(cofactor 5) -> clip at 99th percentile per marker -> z-score per marker.
+    # Kept inline (not imported) so this script stays standalone.
     raw = _make_raw_intensities(cell_types, rng)
     transformed = np.arcsinh(raw / 5.0)
+    hi = np.percentile(transformed, 99.0, axis=0, keepdims=True)
+    transformed = np.minimum(transformed, hi)
     mean = transformed.mean(axis=0, keepdims=True)
     std = transformed.std(axis=0, keepdims=True)
     std[std == 0] = 1.0

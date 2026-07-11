@@ -50,29 +50,24 @@ NEEDED_FILES: dict[str, str] = {
 # ---------------------------------------------------------------------------------
 
 
-def print_listing() -> list[str]:
-    """Print every member of the remote zip and return their names.
+def print_listing(rz) -> list[str]:
+    """Print every member of an open RemoteZip and return their names.
 
     Reads only the zip central directory over HTTP range requests, so this is
     fast and does not download the 36.8 GB payload.
     """
-    from remotezip import RemoteZip
-
     names: list[str] = []
     print(f"Listing {ZENODO_URL}\n(reading central directory only, not the payload)\n")
-    with RemoteZip(ZENODO_URL) as rz:
-        for info in rz.infolist():
-            size_mb = info.file_size / 1e6
-            print(f"  {size_mb:10.2f} MB  {info.filename}")
-            names.append(info.filename)
+    for info in rz.infolist():
+        size_mb = info.file_size / 1e6
+        print(f"  {size_mb:10.2f} MB  {info.filename}")
+        names.append(info.filename)
     print(f"\n{len(names)} members total.")
     return names
 
 
-def extract_needed() -> None:
+def extract_needed(rz, available: set[str]) -> None:
     """Extract only NEEDED_FILES into data/raw/, skipping any already present."""
-    from remotezip import RemoteZip
-
     RAW_DIR.mkdir(parents=True, exist_ok=True)
 
     missing = {
@@ -84,22 +79,17 @@ def extract_needed() -> None:
         print("All needed files already present in data/raw/. Nothing to do.")
         return
 
-    with RemoteZip(ZENODO_URL) as rz:
-        available = {info.filename for info in rz.infolist()}
-        for key, member in missing.items():
-            if member not in available:
-                print(
-                    f"[SKIP] {key}: '{member}' not found in the archive. "
-                    f"Confirm the path against --list and update NEEDED_FILES."
-                )
-                continue
-            print(f"[GET ] {key}: {member}")
-            # Extract into a flat data/raw/<basename> so downstream code has stable paths.
-            rz.extract(member, path=RAW_DIR)
-            extracted = RAW_DIR / member
-            flat = RAW_DIR / Path(member).name
-            if extracted != flat:
-                extracted.replace(flat)
+    for key, member in missing.items():
+        if member not in available:
+            print(
+                f"[SKIP] {key}: '{member}' not found in the archive. "
+                f"Confirm the path against --list and update NEEDED_FILES."
+            )
+            continue
+        print(f"[GET ] {key}: {member}")
+        # Read the member bytes and write them straight to a flat data/raw/<basename>
+        # so downstream code has stable paths and no empty nested dirs are left behind.
+        (RAW_DIR / Path(member).name).write_bytes(rz.read(member))
     print(f"\nDone. Extracted files are in {RAW_DIR}")
 
 
@@ -112,11 +102,15 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print_listing()
-    if args.list:
-        return
-    print()
-    extract_needed()
+    from remotezip import RemoteZip
+
+    # One RemoteZip context: read the central directory once, list, then extract.
+    with RemoteZip(ZENODO_URL) as rz:
+        names = print_listing(rz)
+        if args.list:
+            return
+        print()
+        extract_needed(rz, set(names))
 
 
 if __name__ == "__main__":

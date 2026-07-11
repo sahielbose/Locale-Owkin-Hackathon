@@ -84,6 +84,10 @@ def name_niche(
         msg = client.messages.create(
             model=MODEL,
             max_tokens=_MAX_TOKENS,
+            # Naming a niche is a short deterministic label task; disable extended
+            # thinking so it does not eat the small max_tokens budget and leave the
+            # response with no text block (which would silently force the fallback).
+            thinking={"type": "disabled"},
             messages=[{"role": "user", "content": prompt}],
         )
         text = "".join(
