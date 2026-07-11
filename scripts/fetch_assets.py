@@ -110,6 +110,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--alt", default=DEFAULT, help="catalog key (see --list)")
     ap.add_argument(
+        "--uid",
+        help="fetch any Sketchfab model by uid (overrides --alt). Works for your own "
+        "private/unlisted models when SKETCHFAB_TOKEN is yours. Verify the license "
+        "before reusing a third-party model.",
+    )
+    ap.add_argument("--name", help="model name for attribution (with --uid)")
+    ap.add_argument("--author", help="author for attribution (with --uid)")
+    ap.add_argument(
         "--out", default=str(APP_ASSETS / "cell.glb"), help="output .glb path"
     )
     ap.add_argument("--list", action="store_true", help="list verified models and exit")
@@ -119,11 +127,20 @@ def main() -> int:
         _list()
         return 0
 
-    if args.alt not in CATALOG:
+    if args.uid:
+        model = {
+            "uid": args.uid,
+            "name": args.name or "custom model",
+            "author": args.author or "unknown",
+            "faces": "?",
+            "license": "unverified",
+        }
+    elif args.alt not in CATALOG:
         print(f"Unknown model {args.alt!r}. Options:", file=sys.stderr)
         _list()
         return 2
-    model = CATALOG[args.alt]
+    else:
+        model = CATALOG[args.alt]
 
     token = os.environ.get("SKETCHFAB_TOKEN")
     if not token:
@@ -147,14 +164,20 @@ def main() -> int:
         out.write_bytes(resp.read())
     print(f"wrote {out} ({out.stat().st_size / 1e6:.1f} MB)")
 
+    lic = model.get("license", "CC-BY 4.0")
+    is_ccby = lic == "CC-BY 4.0"
     attribution = {
         "name": model["name"],
         "author": model["author"],
-        "license": "CC-BY 4.0",
-        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "license": lic,
+        "license_url": (
+            "https://creativecommons.org/licenses/by/4.0/" if is_ccby else ""
+        ),
         "source": f"https://sketchfab.com/3d-models/{model['uid']}",
         "credit": (
             f'"{model["name"]}" by {model["author"]}, licensed CC-BY 4.0 via Sketchfab.'
+            if is_ccby
+            else f'"{model["name"]}" by {model["author"]} (verify license before reuse).'
         ),
     }
     attr_path = out.parent / "attribution.json"

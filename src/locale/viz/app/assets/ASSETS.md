@@ -66,5 +66,13 @@ Downloads require a **free** Sketchfab token (2 clicks, no cost):
 `fetch_assets.py` writes `cell.glb` plus `attribution.json` (author, license, URL),
 which the viewer reads to render the required CC-BY credit line.
 
+To pull a specific model by id (for example your own private/unlisted upload, which
+your token can access), bypass the catalog:
+
+    python scripts/fetch_assets.py --uid <sketchfab_uid> --name "..." --author "..."
+
+Verify the license yourself before reusing a third-party model this way; the catalog
+entries above are the only ones we license-checked.
+
 Manual fallback: on the model page click **Download 3D Model → glTF (.glb)**, drop the
 file here as `cell.glb`, and copy its credit line into `attribution.json`.
