@@ -1,0 +1,164 @@
+"""Build a MapPayload from an AnnData + image_id (Lane C).
+
+A MapPayload is the render contract for the tissue-map widget: a flat list of
+cells (x, y, cell_type, niche_id) plus a color legend. The HTML widget in
+viz/app/ consumes exactly this object.
+
+Run this to (re)generate the sample payload the widget renders from the mock:
+
+    python -m src.locale.viz.payload            # writes viz/app/sample_payload.{json,js}
+    python -m src.locale.viz.payload --image IMG002 --color-mode niche
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+import anndata as ad
+import numpy as np
+
+from ..schema import MapPayload, MapUnit
+
+APP_DIR = Path(__file__).resolve().parent / "app"
+MOCK_PATH = Path(__file__).resolve().parents[3] / "data" / "mock.h5ad"
+
+# Fixed palette so cell-type colors are stable across every render (matches the
+# palette baked into viz/app/index.html).
+CELL_TYPE_COLORS: dict[str, str] = {
+    "Tumor": "#d62728",
+    "CD8_T": "#1f77b4",
+    "CD4_T": "#17becf",
+    "Macrophage": "#ff7f0e",
+    "Fibroblast": "#2ca02c",
+    "Endothelial": "#9467bd",
+}
+NICHE_COLORS: list[str] = [
+    "#8c2d04",
+    "#238b45",
+    "#2171b5",
+    "#cc4c02",
+    "#6a51a3",
+    "#00688B",
+]
+_FALLBACK_COLORS: list[str] = [
+    "#e6194b",
+    "#3cb44b",
+    "#4363d8",
+    "#f58231",
+    "#911eb4",
+    "#46f0f0",
+    "#f032e6",
+    "#bcf60c",
+    "#fabebe",
+    "#008080",
+]
+
+
+def _cell_type_color(cell_type: str, index: int) -> str:
+    return CELL_TYPE_COLORS.get(
+        cell_type, _FALLBACK_COLORS[index % len(_FALLBACK_COLORS)]
+    )
+
+
+def build_map_payload(
+    adata: ad.AnnData,
+    image_id: str,
+    color_mode: str = "cell_type",
+) -> MapPayload:
+    """Build a MapPayload for one image.
+
+    Args:
+        adata: canonical AnnData (needs obsm['spatial'], obs['cell_type'];
+            obs['niche'] is used when present).
+        image_id: which IMC core to render.
+        color_mode: "cell_type" or "niche" (drives the legend that is returned;
+            units always carry both cell_type and niche_id so the widget can toggle).
+
+    Returns:
+        MapPayload with one MapUnit per cell and a label->hex legend.
+    """
+    if color_mode not in ("cell_type", "niche"):
+        raise ValueError(
+            f"color_mode must be 'cell_type' or 'niche', got {color_mode!r}"
+        )
+    if "image_id" not in adata.obs:
+        raise ValueError("adata.obs is missing 'image_id'")
+
+    mask = adata.obs["image_id"].astype(str).to_numpy() == str(image_id)
+    if not mask.any():
+        available = sorted(set(adata.obs["image_id"].astype(str)))
+        raise ValueError(f"image_id {image_id!r} not found. Available: {available}")
+
+    sub = adata[mask]
+    coords = np.asarray(sub.obsm["spatial"], dtype=float)
+    cell_types = sub.obs["cell_type"].astype(str).to_numpy()
+    has_niche = "niche" in sub.obs
+    niches = sub.obs["niche"].to_numpy() if has_niche else None
+    niche_names: dict[str, str] = dict(adata.uns.get("niche_names", {}))
+
+    units: list[MapUnit] = []
+    for i in range(sub.n_obs):
+        niche_id = int(niches[i]) if has_niche else None
+        units.append(
+            MapUnit(
+                x=float(coords[i, 0]),
+                y=float(coords[i, 1]),
+                cell_type=str(cell_types[i]),
+                niche_id=niche_id,
+            )
+        )
+
+    if color_mode == "cell_type":
+        present = list(dict.fromkeys(cell_types))
+        legend = {ct: _cell_type_color(ct, i) for i, ct in enumerate(present)}
+    else:
+        legend = {}
+        if has_niche:
+            for nid in sorted({int(n) for n in niches}):
+                label = niche_names.get(str(nid), f"niche {nid}")
+                legend[label] = NICHE_COLORS[nid % len(NICHE_COLORS)]
+
+    return MapPayload(
+        units=units, legend=legend, color_mode=color_mode, image_id=str(image_id)
+    )
+
+
+def load_mock() -> ad.AnnData:
+    """Load the committed data/mock.h5ad."""
+    if not MOCK_PATH.exists():
+        raise FileNotFoundError(
+            f"{MOCK_PATH} not found. Run: python scripts/make_mock.py"
+        )
+    return ad.read_h5ad(MOCK_PATH)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--image", default="IMG001", help="image_id to render")
+    parser.add_argument(
+        "--color-mode", default="cell_type", choices=["cell_type", "niche"]
+    )
+    args = parser.parse_args()
+
+    adata = load_mock()
+    payload = build_map_payload(adata, args.image, args.color_mode)
+    data = payload.model_dump()
+
+    APP_DIR.mkdir(parents=True, exist_ok=True)
+    json_path = APP_DIR / "sample_payload.json"
+    js_path = APP_DIR / "sample_payload.js"
+    json_path.write_text(json.dumps(data, indent=2))
+    # A JS wrapper so index.html can auto-render from mock over file:// (no server).
+    js_path.write_text(
+        "// Auto-generated by src/locale/viz/payload.py. Do not edit by hand.\n"
+        "window.LOCALE_PAYLOAD = " + json.dumps(data) + ";\n"
+    )
+    print(f"wrote {json_path} ({len(payload.units)} cells, image {args.image})")
+    print(f"wrote {js_path}")
+    print("open viz/app/index.html in a browser to view.")
+
+
+if __name__ == "__main__":
+    main()

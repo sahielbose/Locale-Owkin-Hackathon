@@ -1,0 +1,34 @@
+# Locale dependencies (Python 3.11)
+#
+# Lane A (data + engine) needs the scverse stack; Lanes B and C can work with a
+# much lighter install (pydantic + mcp + anndata) against data/mock.h5ad.
+#
+# The heavy spatial libraries (squidpy, cellcharter, scanpy) are only required
+# once you build/analyze the real data/locale.h5ad. If you are only building the
+# MCP server or the viz against the mock, you can skip them.
+
+# --- core data contract + IO (everyone needs these) ---
+pydantic>=2.6
+anndata>=0.10
+numpy>=1.26
+pandas>=2.1
+
+# --- Lane A: spatial analysis engine ---
+squidpy>=1.4          # spatial graph + neighborhood enrichment
+cellcharter>=0.3      # cross-sample niche detection (VAE + GMM)
+scanpy>=1.10          # rank_genes_groups for marker programs
+lifelines>=0.28       # Cox / Kaplan-Meier survival association
+
+# --- Lane A: data fetch ---
+remotezip>=0.12       # range-request extraction of needed files from the Zenodo zip
+
+# --- Lane B: MCP server ---
+mcp>=1.2              # Python MCP SDK (remote / HTTP server)
+anthropic>=0.40       # server-side sampling for niche auto-naming (interpret.py)
+
+# --- Lane C: visualization ---
+plotly>=5.20          # scattergl tissue map (deck.gl loaded via CDN in the HTML)
+
+# --- tooling ---
+pytest>=8.0
+black>=24.0

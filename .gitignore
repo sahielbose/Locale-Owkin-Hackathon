@@ -1,0 +1,43 @@
+# --- Data is NOT committed (see CLAUDE.md "Data-not-in-git rules") ---
+# Ignore everything under data/ ...
+data/*
+# ... except the tiny committed synthetic object and the placeholder.
+!data/.gitkeep
+!data/mock.h5ad
+
+# Belt-and-suspenders: ignore any .h5ad anywhere except the committed mock.
+*.h5ad
+!data/mock.h5ad
+
+# The real canonical object and extracted CSVs are shared out of band (Drive),
+# never via git.
+data/locale.h5ad
+data/raw/
+
+# --- Python ---
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+
+# --- Generated viz sample (regenerate with `python -m src.locale.viz.payload`) ---
+src/locale/viz/app/sample_payload.js
+src/locale/viz/app/sample_payload.json
+
+# --- Secrets ---
+.env
+.env.*
+
+# --- OS / editor ---
+.DS_Store
+.idea/
+.vscode/

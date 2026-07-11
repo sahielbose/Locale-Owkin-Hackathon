@@ -1,0 +1,9 @@
+[tool.pytest.ini_options]
+# Run pytest from the repo root; make `import src.locale...` resolve.
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
