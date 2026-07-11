@@ -33,6 +33,14 @@ dist/
 src/locale/viz/app/sample_payload.js
 src/locale/viz/app/sample_payload.json
 
+# --- 3D hero assets: fetched externally, never committed (see assets/ASSETS.md) ---
+src/locale/viz/app/assets/*.glb
+src/locale/viz/app/assets/*.gltf
+src/locale/viz/app/assets/*.obj
+src/locale/viz/app/assets/*.stl
+src/locale/viz/app/assets/*.bin
+src/locale/viz/app/assets/attribution.json
+
 # --- Secrets ---
 .env
 .env.*
