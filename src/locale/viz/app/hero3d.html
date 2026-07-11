@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Locale &middot; 3D cell</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --ink: #e8ebf0; --muted: #9aa4b2;
+    --border: #262b34; --accent: #6ea8fe;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  #app { display: grid; grid-template-rows: auto 1fr; height: 100vh; }
+  header { display: flex; align-items: center; gap: 16px; padding: 10px 16px;
+    border-bottom: 1px solid var(--border); background: var(--panel); }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .2px; }
+  header .meta { color: var(--muted); font-size: 12px; }
+  header .spacer { flex: 1; }
+  header a.link { color: var(--accent); font-size: 12px; text-decoration: none; }
+  header a.link:hover { text-decoration: underline; }
+  button.ctl { background: transparent; color: var(--muted); border: 1px solid var(--border);
+    border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+  button.ctl.active { background: var(--accent); color: #06101f; font-weight: 600; border-color: var(--accent); }
+  #stage { position: relative; overflow: hidden; }
+  #gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #credit { position: absolute; left: 12px; bottom: 12px; z-index: 5;
+    background: #0b0d11cc; border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 10px; font-size: 12px; color: var(--muted); max-width: 60ch; }
+  #credit a { color: var(--accent); text-decoration: none; }
+  #credit a:hover { text-decoration: underline; }
+  #empty { position: absolute; inset: 0; display: none; place-items: center; z-index: 6; padding: 24px; }
+  #empty .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 22px 24px; max-width: 560px; }
+  #empty h2 { margin: 0 0 10px; font-size: 15px; }
+  #empty code { background: #0b0d11; border: 1px solid var(--border); border-radius: 5px;
+    padding: 1px 6px; color: var(--ink); }
+  #empty p { color: var(--muted); margin: 8px 0; }
+  #spinner { position: absolute; inset: 0; display: grid; place-items: center; z-index: 4;
+    color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Locale &middot; 3D cell</h1>
+    <span class="meta" id="model-meta">loading&hellip;</span>
+    <span class="spacer"></span>
+    <button class="ctl active" id="spin-btn" title="Toggle auto-rotate">auto-rotate</button>
+    <a class="link" href="index.html">&larr; tissue map</a>
+  </header>
+  <div id="stage">
+    <canvas id="gl"></canvas>
+    <div id="spinner">loading model&hellip;</div>
+    <div id="credit"></div>
+    <div id="empty">
+      <div class="card">
+        <h2>No model in <code>assets/</code> yet</h2>
+        <p>The viewer renders a real, externally-sourced CC-BY cell model. Nothing
+           here is generated.</p>
+        <p>Get a free Sketchfab API token, then:</p>
+        <p><code>export SKETCHFAB_TOKEN=...</code><br>
+           <code>python scripts/fetch_assets.py</code></p>
+        <p>That writes <code>assets/cell.glb</code> and <code>assets/attribution.json</code>.
+           See <code>assets/ASSETS.md</code> for the full verified sourcing list, or pass
+           <code>?model=&lt;url&gt;</code> to load any .glb/.gltf/.obj/.stl directly.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.168.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.168.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { OBJLoader } from "three/addons/loaders/OBJLoader.js";
+import { STLLoader } from "three/addons/loaders/STLLoader.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+const stage = document.getElementById("stage");
+const canvas = document.getElementById("gl");
+const spinner = document.getElementById("spinner");
+const credit = document.getElementById("credit");
+const empty = document.getElementById("empty");
+const meta = document.getElementById("model-meta");
+
+const params = new URLSearchParams(location.search);
+// Explicit ?model= wins; otherwise the model fetch_assets.py unpacked into assets/model/.
+const modelUrl = params.get("model") || "assets/model/scene.gltf";
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f1115);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera(45, 1, 0.01, 5000);
+camera.position.set(0, 0, 3);
+
+const key = new THREE.DirectionalLight(0xffffff, 2.0);
+key.position.set(3, 4, 5);
+scene.add(key);
+const fill = new THREE.DirectionalLight(0x8fb4ff, 0.6);
+fill.position.set(-4, -2, -3);
+scene.add(fill);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.9;
+
+document.getElementById("spin-btn").addEventListener("click", (e) => {
+  controls.autoRotate = !controls.autoRotate;
+  e.currentTarget.classList.toggle("active", controls.autoRotate);
+});
+
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener("resize", resize);
+resize();
+
+function frameObject(object3d) {
+  const box = new THREE.Box3().setFromObject(object3d);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  object3d.position.sub(center); // recenter at origin
+  const radius = Math.max(size.x, size.y, size.z) * 0.5 || 1;
+  const dist = radius / Math.sin((camera.fov * Math.PI) / 180 / 2);
+  camera.position.set(0, 0, dist * 1.35);
+  camera.near = dist / 100;
+  camera.far = dist * 100;
+  camera.updateProjectionMatrix();
+  controls.target.set(0, 0, 0);
+  controls.minDistance = radius * 0.5;
+  controls.maxDistance = dist * 6;
+  controls.update();
+}
+
+function showEmpty() {
+  spinner.style.display = "none";
+  empty.style.display = "grid";
+  meta.textContent = "no model loaded";
+}
+
+function setCredit(a) {
+  if (!a) { credit.style.display = "none"; return; }
+  const src = a.source ? ` &middot; <a href="${a.source}" target="_blank" rel="noopener">source</a>` : "";
+  const lic = a.license_url
+    ? `<a href="${a.license_url}" target="_blank" rel="noopener">${a.license || "license"}</a>`
+    : (a.license || "");
+  credit.innerHTML = `<b>${a.name || "model"}</b> by ${a.author || "unknown"} &middot; ${lic}${src}`;
+  credit.style.display = "block";
+}
+
+async function loadAttribution() {
+  // CC-BY requires a visible credit. Prefer the file fetch_assets.py wrote.
+  try {
+    const r = await fetch("assets/attribution.json", { cache: "no-store" });
+    if (r.ok) return await r.json();
+  } catch (_) { /* no attribution file; fall through */ }
+  if (params.get("credit")) {
+    return { name: params.get("credit"), author: params.get("author") || "", license: "see source" };
+  }
+  return null;
+}
+
+function addModel(object3d, ext) {
+  object3d.traverse((o) => {
+    if (o.isMesh && o.material && "envMapIntensity" in o.material) {
+      o.material.envMapIntensity = 1.0;
+    }
+  });
+  scene.add(object3d);
+  frameObject(object3d);
+  spinner.style.display = "none";
+  const tris = renderer.info.render.triangles;
+  meta.textContent = ext.toUpperCase() + " loaded";
+}
+
+function loadModel(url) {
+  const ext = (url.split("?")[0].split(".").pop() || "").toLowerCase();
+  const onErr = (err) => { console.error(err); showEmpty(); };
+
+  if (ext === "glb" || ext === "gltf") {
+    new GLTFLoader().load(url, (g) => addModel(g.scene, ext), undefined, onErr);
+  } else if (ext === "obj") {
+    new OBJLoader().load(url, (o) => addModel(o, ext), undefined, onErr);
+  } else if (ext === "stl") {
+    new STLLoader().load(url, (geo) => {
+      geo.computeVertexNormals();
+      const mat = new THREE.MeshStandardMaterial({ color: 0xc65b5b, roughness: 0.55, metalness: 0.0 });
+      addModel(new THREE.Mesh(geo, mat), ext);
+    }, undefined, onErr);
+  } else {
+    onErr(new Error("Unsupported model extension: " + ext));
+  }
+}
+
+(async function boot() {
+  setCredit(await loadAttribution());
+  loadModel(modelUrl);
+})();
+
+renderer.setAnimationLoop(() => {
+  controls.update();
+  renderer.render(scene, camera);
+});
+</script>
+</body>
+</html>
