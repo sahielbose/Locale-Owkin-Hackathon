@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Locale dashboard</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --card:#1c2029; --ink:#e8ebf0; --muted:#9aa4b2;
+    --border:#262b34; --accent:#6ea8fe; --good:#37c07f; --bad:#e06a6a;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);
+    font:14px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  header{display:flex;align-items:baseline;gap:16px;padding:14px 20px;border-bottom:1px solid var(--border);background:var(--panel)}
+  header h1{font-size:16px;margin:0;font-weight:700}
+  header .sub{color:var(--muted);font-size:12px}
+  header .spacer{flex:1}
+  main{padding:18px 20px;display:grid;gap:18px;grid-template-columns:1fr 1fr;max-width:1400px;margin:0 auto}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .panel h2{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 12px}
+  .full{grid-column:1 / -1}
+  /* heatmap */
+  table.heat{border-collapse:collapse;font-size:11px}
+  table.heat th{color:var(--muted);font-weight:600;padding:3px 5px;text-align:right;white-space:nowrap}
+  table.heat th.col{text-align:center;writing-mode:vertical-rl;transform:rotate(180deg);height:56px;vertical-align:bottom}
+  table.heat td{width:38px;height:32px;text-align:center;color:#0b0d11;font-weight:600;border:1px solid var(--panel)}
+  .heat-note{color:var(--muted);font-size:11px;margin-top:10px}
+  /* map */
+  #stage{position:relative;height:360px;background:#0b0d11;border-radius:8px;overflow:hidden}
+  #map{width:100%;height:100%;display:block}
+  .toggle{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;float:right}
+  .toggle button{background:transparent;color:var(--muted);border:0;padding:4px 12px;cursor:pointer;font-size:12px}
+  .toggle button.active{background:var(--accent);color:#06101f;font-weight:600}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:10px}
+  .legend .item{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+  .swatch{width:11px;height:11px;border-radius:3px;flex:none}
+  /* niche cards */
+  .cards{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:13px 14px}
+  .card .top{display:flex;align-items:center;gap:8px}
+  .card .dot{width:12px;height:12px;border-radius:3px;flex:none}
+  .card .name{font-weight:600;font-size:13.5px;flex:1}
+  .hr{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;white-space:nowrap}
+  .hr.bad{background:rgba(224,106,106,.16);color:var(--bad)}
+  .hr.good{background:rgba(55,192,127,.16);color:var(--good)}
+  .hr.na{background:#242a34;color:var(--muted)}
+  .card .desc{color:var(--muted);font-size:12px;margin:7px 0 10px}
+  .compbar{display:flex;height:9px;border-radius:5px;overflow:hidden;margin-bottom:8px}
+  .compbar span{height:100%}
+  .markers{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+  .chip{background:#242a34;border:1px solid var(--border);border-radius:6px;padding:2px 7px;font-size:11px;color:var(--ink)}
+  .kmwrap{display:flex;align-items:center;gap:10px;margin-top:6px}
+  .kmleg{font-size:10.5px;color:var(--muted);line-height:1.6}
+  .kmleg b{font-weight:700}
+  .flow{color:var(--muted);font-size:11.5px}
+  code{background:#242a34;padding:1px 5px;border-radius:4px;color:var(--accent);font-size:11.5px}
+  @media (max-width:920px){main{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Locale &middot; spatial niche dashboard</h1>
+  <span class="sub" id="summary">loading&hellip;</span>
+  <span class="spacer"></span>
+  <span class="flow">engine &rarr; MCP tools &rarr; this view</span>
+</header>
+<main>
+  <section class="panel">
+    <h2>Co-location &middot; who sits next to whom</h2>
+    <div id="heatmap"></div>
+    <div class="heat-note">Neighborhood-enrichment z-score per cell-type pair. Blue = adjacent more than chance, orange = avoided.</div>
+  </section>
+
+  <section class="panel">
+    <h2>Tissue map
+      <span class="toggle" id="toggle">
+        <button data-mode="niche" class="active">Niche</button>
+        <button data-mode="cell_type">Cell type</button>
+      </span>
+    </h2>
+    <div id="stage"><canvas id="map"></canvas></div>
+    <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="panel full">
+    <h2>Niches ranked by prognostic strength</h2>
+    <div class="cards" id="cards"></div>
+  </section>
+</main>
+
+<script src="dashboard_data.js"></script>
+<script>
+(function(){
+  var D = window.LOCALE_DASHBOARD;
+  if(!D){ document.getElementById("summary").textContent =
+    "no data. run: PYTHONPATH=. python scripts/build_dashboard.py"; return; }
+
+  var CELL_COLORS = {Tumor:"#d62728",CD8_T:"#1f77b4",CD4_T:"#17becf",
+    Macrophage:"#ff7f0e",Fibroblast:"#2ca02c",Endothelial:"#9467bd"};
+  var NICHE_COLORS = ["#8c2d04","#238b45","#2171b5","#cc4c02","#6a51a3","#00688B"];
+  var FALLBACK = ["#e6194b","#3cb44b","#4363d8","#f58231","#911eb4","#46f0f0"];
+  function cellColor(ct,i){ return CELL_COLORS[ct] || FALLBACK[i%FALLBACK.length]; }
+  function nicheColor(id){ return NICHE_COLORS[id % NICHE_COLORS.length]; }
+
+  document.getElementById("summary").textContent =
+    D.cohort + " cohort · " + D.n_cells + " cells · " + D.n_patients +
+    " patients · " + D.n_images + " images";
+
+  // ---- enrichment heatmap ----
+  (function(){
+    var ct = D.enrichment.cell_types, z = D.enrichment.zscores;
+    var max = 1e-6;
+    for(var i=0;i<z.length;i++) for(var j=0;j<z[i].length;j++) max=Math.max(max,Math.abs(z[i][j]));
+    function color(v){
+      var t = Math.max(-1,Math.min(1, v/max));
+      // diverging: + -> blue, - -> orange
+      if(t>=0){ var a=t; return "rgb("+Math.round(255-a*(255-46))+","+Math.round(255-a*(255-125))+","+Math.round(255-a*(255-224))+")"; }
+      var b=-t; return "rgb("+Math.round(255-b*(255-247))+","+Math.round(255-b*(255-148))+","+Math.round(255-b*(255-30))+")";
+    }
+    var html = "<table class='heat'><tr><th></th>";
+    ct.forEach(function(c){ html += "<th class='col'>"+c+"</th>"; });
+    html += "</tr>";
+    for(var i=0;i<ct.length;i++){
+      html += "<tr><th>"+ct[i]+"</th>";
+      for(var j=0;j<ct.length;j++){
+        var v=z[i][j];
+        html += "<td style='background:"+color(v)+"' title='"+ct[i]+" × "+ct[j]+": z="+v.toFixed(1)+"'>"+
+                (Math.abs(v)>=1?Math.round(v):"")+"</td>";
+      }
+      html += "</tr>";
+    }
+    html += "</table>";
+    document.getElementById("heatmap").innerHTML = html;
+  })();
+
+  // ---- niche cards ----
+  (function(){
+    var host = document.getElementById("cards"), html="";
+    D.niches.forEach(function(n){
+      var p = n.prognostic;
+      var hrClass = !p ? "na" : (p.hazard_ratio>1 ? "bad":"good");
+      var hrTxt = !p ? "no survival fit" :
+        "HR "+p.hazard_ratio.toFixed(2)+"  p="+p.pvalue.toFixed(2);
+      // composition bar (sorted desc)
+      var comp = Object.keys(n.composition).map(function(k){return [k,n.composition[k]];})
+        .sort(function(a,b){return b[1]-a[1];});
+      var bar = comp.map(function(c,i){
+        return "<span style='width:"+(c[1]*100).toFixed(1)+"%;background:"+cellColor(c[0],i)+
+          "' title='"+c[0]+" "+(c[1]*100).toFixed(0)+"%'></span>";}).join("");
+      var top3 = comp.slice(0,3).map(function(c){return c[0]+" "+(c[1]*100).toFixed(0)+"%";}).join(" · ");
+      var chips = n.marker_program.slice(0,6).map(function(m){return "<span class='chip'>"+m+"</span>";}).join("");
+      var km = (p && p.km) ? kmSvg(p.km) : "<div class='kmleg'>survival curve needs a powered cohort</div>";
+      html += "<div class='card'>"+
+        "<div class='top'><span class='dot' style='background:"+nicheColor(n.niche_id)+"'></span>"+
+          "<span class='name'>"+n.name+"</span>"+
+          "<span class='hr "+hrClass+"'>"+hrTxt+"</span></div>"+
+        "<div class='desc'>"+top3+"</div>"+
+        "<div class='compbar'>"+bar+"</div>"+
+        "<div class='markers'>"+chips+"</div>"+
+        km +
+        "</div>";
+    });
+    host.innerHTML = html;
+  })();
+
+  function kmSvg(km){
+    var W=210,H=96,pad=6, tmax=Math.max.apply(null,km.time)||1;
+    function pts(arr){ return arr.map(function(v,i){
+      var x=pad+(km.time[i]/tmax)*(W-2*pad);
+      var y=pad+(1-v)*(H-2*pad);
+      return x.toFixed(1)+","+y.toFixed(1);
+    }).join(" "); }
+    return "<div class='kmwrap'><svg width='"+W+"' height='"+H+"' viewBox='0 0 "+W+" "+H+"'>"+
+      "<rect x='0.5' y='0.5' width='"+(W-1)+"' height='"+(H-1)+"' fill='none' stroke='#262b34'/>"+
+      "<polyline fill='none' stroke='#6ea8fe' stroke-width='2' points='"+pts(km.high)+"'/>"+
+      "<polyline fill='none' stroke='#e06a6a' stroke-width='2' points='"+pts(km.low)+"'/>"+
+      "</svg><div class='kmleg'><span style='display:inline-block;width:14px;height:2px;background:#6ea8fe;vertical-align:middle'></span> high abundance<br>"+
+      "<span style='display:inline-block;width:14px;height:2px;background:#e06a6a;vertical-align:middle'></span> low abundance<br><span style='opacity:.7'>survival vs months</span></div></div>";
+  }
+
+  // ---- tissue map (canvas) ----
+  var mode = "niche";
+  var canvas = document.getElementById("map"), ctx = canvas.getContext("2d");
+  var units = D.map.units;
+  var xs = units.map(function(u){return u.x;}), ys = units.map(function(u){return u.y;});
+  var minx=Math.min.apply(null,xs), maxx=Math.max.apply(null,xs);
+  var miny=Math.min.apply(null,ys), maxy=Math.max.apply(null,ys);
+
+  function draw(){
+    var r = canvas.getBoundingClientRect();
+    canvas.width = r.width; canvas.height = r.height;
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    var pad=16, w=canvas.width-2*pad, h=canvas.height-2*pad;
+    var sx=w/((maxx-minx)||1), sy=h/((maxy-miny)||1), s=Math.min(sx,sy);
+    var ox=pad+(w-(maxx-minx)*s)/2, oy=pad+(h-(maxy-miny)*s)/2;
+    var seen={};
+    units.forEach(function(u,i){
+      var col = mode==="niche" ? nicheColor(u.niche_id==null?0:u.niche_id)
+                               : cellColor(u.cell_type, ctIndex(u.cell_type));
+      seen[mode==="niche"?u.niche_id:u.cell_type]=col;
+      var px=ox+(u.x-minx)*s, py=oy+(maxy-u.y)*s;
+      ctx.beginPath(); ctx.arc(px,py,3.2,0,6.29); ctx.fillStyle=col; ctx.globalAlpha=.9; ctx.fill();
+    });
+    ctx.globalAlpha=1;
+    legend();
+  }
+  var _ctOrder=[];
+  function ctIndex(ct){ var k=_ctOrder.indexOf(ct); if(k<0){_ctOrder.push(ct);k=_ctOrder.length-1;} return k; }
+
+  function legend(){
+    var host=document.getElementById("legend"), html="";
+    if(mode==="niche"){
+      D.niches.slice().sort(function(a,b){return a.niche_id-b.niche_id;}).forEach(function(n){
+        html += "<span class='item'><span class='swatch' style='background:"+nicheColor(n.niche_id)+"'></span>"+n.name+"</span>";
+      });
+    } else {
+      Object.keys(CELL_COLORS).forEach(function(ct,i){
+        html += "<span class='item'><span class='swatch' style='background:"+cellColor(ct,i)+"'></span>"+ct+"</span>";
+      });
+    }
+    host.innerHTML = html;
+  }
+
+  document.getElementById("toggle").addEventListener("click",function(e){
+    var b=e.target.closest("button"); if(!b) return;
+    mode=b.dataset.mode;
+    [].forEach.call(this.children,function(x){x.classList.toggle("active",x.dataset.mode===mode);});
+    draw();
+  });
+  window.addEventListener("resize",draw);
+  draw();
+})();
+</script>
+</body>
+</html>
