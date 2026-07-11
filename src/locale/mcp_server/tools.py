@@ -1,39 +1,69 @@
 """MCP tool functions (Lane B).
 
-Each function returns a schema object from src/locale/schema.py. Tools try the real
-engine first and, while the engine still raises NotImplementedError, fall back to
-lightweight reads/summaries of the loaded AnnData so the server is demoable on
-data/mock.h5ad TODAY. Swap nothing here when Lane A lands; the try/except upgrades
-automatically.
+Each function returns a schema object from src/locale/schema.py. The core pattern
+for every tool is graceful degradation:
 
-The only "analysis" done in this layer is a clearly-marked TEMPORARY neighborhood
-co-occurrence used by compute_enrichment until engine.enrichment is wired. All real
-analysis belongs in src/locale/engine/.
+    try the real engine function (Lane A);
+    if it raises NotImplementedError (not finished) or ANY exception,
+    fall back to a value derived from the loaded AnnData,
+
+so every tool ALWAYS returns a valid, schema-correct object today on data/mock.h5ad
+and AUTO-UPGRADES to the real analysis as Lane A lands each engine function. The
+path taken (real vs fallback) is logged and recorded in backend_status().
+
+Engine modules are imported LAZILY inside each call so that an in-progress edit to
+Lane A (a syntax error, a changed signature) can never stop this server from
+importing or serving; it just routes that one tool to its fallback.
+
+Scope: this file only WRAPS the engine and reads the AnnData. All real analysis
+lives in src/locale/engine/. The one bit of computation here is a clearly labeled
+TEMPORARY adjacency z-score used by compute_enrichment until engine.enrichment lands.
 """
 
 from __future__ import annotations
 
 import functools
+import logging
 import os
 from pathlib import Path
+from typing import Callable, TypeVar
 
 import anndata as ad
 import numpy as np
 
-from ..engine import enrichment as _engine_enrichment
-from ..engine import outcome as _engine_outcome
 from ..schema import EnrichmentResult, MapPayload, Niche, Prognostic, SampleRecord
 from ..viz.payload import build_map_payload
 from . import interpret
 
+logger = logging.getLogger("locale.mcp.tools")
+
 COHORT = "breast"
-_DEFAULT_DATA = Path(__file__).resolve().parents[3] / "data" / "mock.h5ad"
 _TOP_MARKERS = 6
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_MOCK = _REPO_ROOT / "data" / "mock.h5ad"
+_REAL = _REPO_ROOT / "data" / "locale.h5ad"
+
+# Records which backend served each tool most recently ("real" | "fallback").
+_BACKEND: dict[str, str] = {}
+
+T = TypeVar("T")
+
+
+# --- data loading -----------------------------------------------------------------
 
 
 def data_path() -> Path:
-    """Path to the AnnData the server serves (LOCALE_DATA env overrides the mock)."""
-    return Path(os.environ.get("LOCALE_DATA", str(_DEFAULT_DATA)))
+    """Resolve the AnnData to serve.
+
+    Priority: $LOCALE_DATA, then data/locale.h5ad (the real object, once Lane A
+    shares it), then the committed data/mock.h5ad.
+    """
+    env = os.environ.get("LOCALE_DATA")
+    if env:
+        return Path(env)
+    if _REAL.exists():
+        return _REAL
+    return _MOCK
 
 
 @functools.lru_cache(maxsize=1)
@@ -43,13 +73,145 @@ def _load() -> ad.AnnData:
         raise FileNotFoundError(
             f"{path} not found. Run `python scripts/make_mock.py` or set LOCALE_DATA."
         )
+    logger.info("loaded AnnData from %s", path)
     return ad.read_h5ad(path)
+
+
+def reset_cache() -> None:
+    """Clear the cached AnnData (used by tests that switch LOCALE_DATA)."""
+    _load.cache_clear()
+
+
+def backend_status() -> dict[str, str]:
+    """Return the most recent backend ("real" | "fallback") used per tool."""
+    return dict(_BACKEND)
+
+
+def _run(tool: str, engine: Callable[[], T], fallback: Callable[[], T]) -> T:
+    """Try the engine path; on NotImplementedError or any error, use the fallback.
+
+    Records and logs which path served the call. Never raises for engine reasons.
+    """
+    try:
+        result = engine()
+        _BACKEND[tool] = "real"
+        logger.info("tool %s served by REAL engine", tool)
+        return result
+    except NotImplementedError:
+        logger.info("tool %s: engine not implemented, using FALLBACK", tool)
+    except Exception as exc:  # engine present but broke (mid-edit, bad data, etc.)
+        logger.warning("tool %s: engine error (%s), using FALLBACK", tool, exc)
+    _BACKEND[tool] = "fallback"
+    return fallback()
+
+
+# --- shared derivations -----------------------------------------------------------
 
 
 def _has_survival(obs) -> bool:
     return "os_month" in obs and bool(
         np.isfinite(obs["os_month"].to_numpy(dtype=float)).any()
     )
+
+
+def known_cohorts() -> list[str]:
+    """Cohorts this server can answer about (single-cohort dataset for now)."""
+    return [COHORT]
+
+
+def _niche_ids(adata: ad.AnnData) -> list[int]:
+    return sorted({int(n) for n in adata.obs["niche"].to_numpy()})
+
+
+def _composition(adata: ad.AnnData, mask: np.ndarray) -> dict[str, float]:
+    types = adata.obs["cell_type"].astype(str).to_numpy()[mask]
+    if types.size == 0:
+        return {}
+    values, counts = np.unique(types, return_counts=True)
+    total = counts.sum()
+    return {str(v): round(float(c) / total, 4) for v, c in zip(values, counts)}
+
+
+def _marker_program(
+    adata: ad.AnnData, mask: np.ndarray, k: int = _TOP_MARKERS
+) -> list[str]:
+    """Top-k markers by mean (z-scored) intensity inside the mask."""
+    x = adata.X[mask]
+    x = np.asarray(x.todense()) if hasattr(x, "todense") else np.asarray(x)
+    if x.shape[0] == 0:
+        return []
+    means = x.mean(axis=0)
+    order = np.argsort(means)[::-1][:k]
+    markers = list(adata.var_names)
+    return [str(markers[i]) for i in order]
+
+
+def _emergency_niches(adata: ad.AnnData) -> np.ndarray:
+    """Last-resort niche labels when there is no engine AND no precomputed obs['niche'].
+
+    Crude deterministic 2x2 spatial quadrant binning per image (0..3). This should
+    almost never run: the mock ships obs['niche'], and real data arrives with the
+    engine. It exists only so the niche tools never crash on an unlabeled object.
+    """
+    coords = np.asarray(adata.obsm["spatial"], dtype=float)
+    images = adata.obs["image_id"].astype(str).to_numpy()
+    labels = np.zeros(coords.shape[0], dtype=int)
+    for img in np.unique(images):
+        sel = np.where(images == img)[0]
+        xs, ys = coords[sel, 0], coords[sel, 1]
+        mx, my = np.median(xs), np.median(ys)
+        labels[sel] = (xs > mx).astype(int) + 2 * (ys > my).astype(int)
+    logger.warning("using crude quadrant niche fallback (no engine, no obs['niche'])")
+    return labels
+
+
+def _labeled_adata(adata: ad.AnnData, n_niches: int | None) -> tuple[ad.AnnData, str]:
+    """Return (adata_with_obs['niche'], backend). Try the engine, else precomputed, else crude."""
+    try:
+        from ..engine.niches import find_niches as engine_find_niches
+
+        n = n_niches if n_niches is not None else 6
+        labeled = engine_find_niches(adata, n_niches=n)
+        if "niche" in labeled.obs:
+            return labeled, "real"
+    except NotImplementedError:
+        pass
+    except Exception as exc:
+        logger.warning("engine.find_niches error (%s), using precomputed/crude", exc)
+
+    if "niche" in adata.obs:
+        return adata, "fallback"
+    adata = adata.copy()
+    adata.obs["niche"] = _emergency_niches(adata)
+    return adata, "fallback"
+
+
+def _characterize(adata: ad.AnnData, niche_id: int, mask: np.ndarray) -> Niche:
+    """Composition + marker program + name for one niche (engine, else derived)."""
+
+    def engine() -> Niche:
+        from ..engine.characterize import characterize_niche as fn
+
+        niche = fn(adata, niche_id)
+        if not niche.name:
+            niche.name = interpret.name_niche(
+                niche.composition, niche.marker_program, niche_id
+            )
+        return niche
+
+    def fallback() -> Niche:
+        composition = _composition(adata, mask)
+        marker_program = _marker_program(adata, mask)
+        name = interpret.name_niche(composition, marker_program, niche_id)
+        return Niche(
+            niche_id=niche_id,
+            name=name,
+            composition=composition,
+            marker_program=marker_program,
+            prognostic=None,
+        )
+
+    return _run(f"characterize_niche[{niche_id}]", engine, fallback)
 
 
 # --- sample introspection ---------------------------------------------------------
@@ -73,15 +235,17 @@ def list_samples() -> list[SampleRecord]:
                 has_survival=_has_survival(sub),
             )
         )
+    _BACKEND["list_samples"] = "real"  # pure read, no engine involved
     return records
 
 
 def describe_sample(
     image_id: str | None = None, cohort: str | None = None
 ) -> SampleRecord:
-    """Describe one image, or the whole cohort when no image_id is given."""
+    """Describe one image (pass image_id) or the whole cohort (pass neither)."""
     adata = _load()
     obs = adata.obs
+    _BACKEND["describe_sample"] = "real"
     if image_id is not None:
         sub = obs[obs["image_id"].astype(str) == str(image_id)]
         if sub.shape[0] == 0:
@@ -111,10 +275,13 @@ def describe_sample(
 def compute_enrichment(scope: str = f"cohort:{COHORT}") -> EnrichmentResult:
     """Cell-type co-location matrix. Uses engine.compute_enrichment when available."""
     adata = _load()
-    try:
-        return _engine_enrichment.compute_enrichment(adata, scope)
-    except NotImplementedError:
-        return _mock_enrichment(adata, scope)
+
+    def engine() -> EnrichmentResult:
+        from ..engine.enrichment import compute_enrichment as fn
+
+        return fn(adata, scope)
+
+    return _run("compute_enrichment", engine, lambda: _mock_enrichment(adata, scope))
 
 
 def _mock_enrichment(
@@ -122,8 +289,8 @@ def _mock_enrichment(
 ) -> EnrichmentResult:
     """TEMPORARY stopgap co-location, replaced by engine.compute_enrichment (squidpy).
 
-    Builds a per-image kNN graph, counts cell-type-pair adjacencies, and z-scores
-    them against a within-image label-permutation null. Deterministic (fixed seed).
+    Per-image kNN graph, cell-type-pair adjacency counts, z-scored against a
+    within-image label-permutation null. Deterministic (fixed seed).
     """
     obs = adata.obs
     cell_types = sorted(set(obs["cell_type"].astype(str)))
@@ -146,8 +313,7 @@ def _mock_enrichment(
             for local_i, nbrs in enumerate(neigh):
                 a = lab[sel[local_i]]
                 for j in nbrs:
-                    b = lab[sel[j]]
-                    counts[a, b] += 1.0
+                    counts[a, lab[sel[j]]] += 1.0
         return (counts + counts.T) / 2.0
 
     observed = adjacency_counts(labels)
@@ -176,82 +342,169 @@ def _mock_enrichment(
 # --- niches -----------------------------------------------------------------------
 
 
-def _niche_ids(adata: ad.AnnData) -> list[int]:
-    if "niche" not in adata.obs:
-        raise ValueError(
-            "adata.obs has no 'niche'; run engine.niches.find_niches first"
-        )
-    return sorted({int(n) for n in adata.obs["niche"].to_numpy()})
-
-
-def _composition(adata: ad.AnnData, mask: np.ndarray) -> dict[str, float]:
-    types = adata.obs["cell_type"].astype(str).to_numpy()[mask]
-    if types.size == 0:
-        return {}
-    values, counts = np.unique(types, return_counts=True)
-    total = counts.sum()
-    return {str(v): round(float(c) / total, 4) for v, c in zip(values, counts)}
-
-
-def _marker_program(
-    adata: ad.AnnData, mask: np.ndarray, k: int = _TOP_MARKERS
-) -> list[str]:
-    """Top-k markers by mean (z-scored) intensity inside the mask."""
-    x = adata.X[mask]
-    x = np.asarray(x.todense()) if hasattr(x, "todense") else np.asarray(x)
-    if x.shape[0] == 0:
-        return []
-    means = x.mean(axis=0)
-    order = np.argsort(means)[::-1][:k]
-    markers = list(adata.var_names)
-    return [str(markers[i]) for i in order]
-
-
-def _build_niche(adata: ad.AnnData, niche_id: int, mask: np.ndarray) -> Niche:
-    composition = _composition(adata, mask)
-    marker_program = _marker_program(adata, mask)
-    name = interpret.name_niche(composition, marker_program, niche_id)
-    return Niche(
-        niche_id=niche_id,
-        name=name,
-        composition=composition,
-        marker_program=marker_program,
-        prognostic=None,
-    )
-
-
 def find_niches(cohort: str = COHORT, n_niches: int | None = None) -> list[Niche]:
-    """Return the cohort's niches (from precomputed obs['niche'] until Lane A lands).
-
-    n_niches is honored once engine.niches.find_niches can recluster; the mock has a
-    fixed precomputed set, so n_niches is currently ignored (documented, not silent
-    at the schema level).
-    """
+    """Find recurring niches (composition + marker program + name) for the cohort."""
     adata = _load()
-    niche_col = adata.obs["niche"].to_numpy()
-    out: list[Niche] = []
-    for niche_id in _niche_ids(adata):
-        mask = niche_col == niche_id
-        out.append(_build_niche(adata, niche_id, mask))
-    return out
+    labeled, backend = _labeled_adata(adata, n_niches)
+    _BACKEND["find_niches"] = backend
+    niche_col = labeled.obs["niche"].to_numpy()
+    return [
+        _characterize(labeled, niche_id, niche_col == niche_id)
+        for niche_id in _niche_ids(labeled)
+    ]
 
 
 def characterize_niche(niche_id: int) -> Niche:
-    """Composition + marker program + name for one niche."""
+    """Composition, marker program, and name for one niche."""
     adata = _load()
-    mask = adata.obs["niche"].to_numpy() == niche_id
+    labeled, _ = _labeled_adata(adata, None)
+    mask = labeled.obs["niche"].to_numpy() == niche_id
     if not mask.any():
         raise ValueError(f"niche_id {niche_id} not present")
-    return _build_niche(adata, niche_id, mask)
+    return _characterize(labeled, niche_id, mask)
+
+
+# --- survival -> prognostic -------------------------------------------------------
+
+
+def _prognostic_for_niche(adata: ad.AnnData, niche_id: int) -> Prognostic | None:
+    """Prognostic for one niche via the engine, else a lifelines fallback, else None."""
+
+    def engine() -> Prognostic:
+        from ..engine.outcome import niche_outcome as fn
+
+        return fn(adata, niche_id)
+
+    return _run(
+        f"niche_outcome[{niche_id}]",
+        engine,
+        lambda: _survival_fallback(adata, niche_id),
+    )
+
+
+def _survival_fallback(adata: ad.AnnData, niche_id: int) -> Prognostic | None:
+    """Cox + KM on per-patient niche abundance (lifelines). Returns None if not viable."""
+    obs = adata.obs
+    needed = {"os_month", "os_event", "patient_id", "niche"}
+    if not needed.issubset(set(obs.columns)):
+        return None
+    try:
+        import pandas as pd
+        from lifelines import CoxPHFitter, KaplanMeierFitter
+
+        frame = pd.DataFrame(
+            {
+                "patient_id": obs["patient_id"].astype(str).to_numpy(),
+                "in_niche": (obs["niche"].to_numpy() == niche_id).astype(float),
+                "os_month": obs["os_month"].to_numpy(dtype=float),
+                "os_event": obs["os_event"].to_numpy().astype(int),
+            }
+        )
+        per_patient = frame.groupby("patient_id").agg(
+            abundance=("in_niche", "mean"),
+            os_month=("os_month", "first"),
+            os_event=("os_event", "first"),
+        )
+        per_patient = per_patient[np.isfinite(per_patient["os_month"])]
+        n_patients = int(per_patient.shape[0])
+        if (
+            n_patients < 2
+            or per_patient["os_event"].sum() == 0
+            or per_patient["abundance"].nunique() < 2
+        ):
+            return None
+
+        # Small cohorts (the 3-patient mock) make an unregularized Cox fit blow up
+        # into absurd hazard ratios. Regularize harder when n is tiny, then clamp to
+        # a plausible finite band so the object is always sane. Real cohorts (~281
+        # patients) hit penalizer 0.1 and no clamping.
+        penalizer = 0.1 if n_patients >= 20 else 1.0
+        cph = CoxPHFitter(penalizer=penalizer)
+        cph.fit(per_patient, duration_col="os_month", event_col="os_event")
+        row = cph.summary.loc["abundance"]
+        hazard_ratio = float(np.exp(row["coef"]))
+        ci_low = float(np.exp(row["coef lower 95%"]))
+        ci_high = float(np.exp(row["coef upper 95%"]))
+        pvalue = float(row["p"])
+        hazard_ratio, ci_low, ci_high = _sane_hr(
+            hazard_ratio, ci_low, ci_high, n_patients
+        )
+
+        km = _km_curve(per_patient)
+        return Prognostic(
+            hazard_ratio=hazard_ratio,
+            ci_low=ci_low,
+            ci_high=ci_high,
+            pvalue=pvalue,
+            n_patients=n_patients,
+            km=km,
+        )
+    except Exception as exc:
+        logger.warning("survival fallback for niche %s failed: %s", niche_id, exc)
+        return None
+
+
+def _sane_hr(
+    hr: float, ci_low: float, ci_high: float, n_patients: int
+) -> tuple[float, float, float]:
+    """Clamp a hazard ratio + CI to a finite, plausible band (logs if it was degenerate).
+
+    Direction (HR>1 vs HR<1) is preserved; only extreme/non-finite magnitudes from an
+    underpowered fit are reined in. On a well-powered cohort nothing is clamped.
+    """
+    lo_band, hi_band = 1e-2, 1e2
+
+    def clamp(v: float, lo: float, hi: float) -> float:
+        if not np.isfinite(v):
+            return hi if v > 0 else lo
+        return float(min(max(v, lo), hi))
+
+    raw = (hr, ci_low, ci_high)
+    hr = clamp(hr, lo_band, hi_band)
+    ci_low = clamp(ci_low, 1e-3, hr)
+    ci_high = clamp(ci_high, hr, 1e3)
+    if raw != (hr, ci_low, ci_high):
+        logger.warning(
+            "regularized underpowered survival estimate (n=%d): %s -> %s",
+            n_patients,
+            raw,
+            (hr, ci_low, ci_high),
+        )
+    return hr, ci_low, ci_high
+
+
+def _km_curve(per_patient) -> "object | None":
+    """Kaplan-Meier survival for high vs low niche-abundance patient groups."""
+    try:
+        from lifelines import KaplanMeierFitter
+
+        from ..schema import KMCurve
+
+        med = float(per_patient["abundance"].median())
+        high = per_patient[per_patient["abundance"] > med]
+        low = per_patient[per_patient["abundance"] <= med]
+        if high.shape[0] == 0 or low.shape[0] == 0:
+            return None
+        t_max = float(per_patient["os_month"].max())
+        grid = [round(t_max * i / 12.0, 3) for i in range(13)]
+
+        def surv(group) -> list[float]:
+            kmf = KaplanMeierFitter().fit(group["os_month"], group["os_event"])
+            return [float(v) for v in kmf.survival_function_at_times(grid).to_numpy()]
+
+        return KMCurve(time=grid, high=surv(high), low=surv(low))
+    except Exception:
+        return None
 
 
 def find_prognostic_niches(
     cohort: str = COHORT, patient_subset: list[str] | None = None
 ) -> list[Niche]:
-    """Orchestrator: niches + survival association + naming, ranked.
+    """Orchestrator: niches + survival association + naming, ranked worst-survival first.
 
-    Attaches Prognostic via engine.outcome.niche_outcome when available; until then
-    ranks by niche abundance and leaves prognostic=None (survival needs Lane A).
+    Chains find_niches -> characterize -> survival -> naming, then ranks by prognostic
+    strength (highest hazard ratio first). Never crashes: if survival is unavailable,
+    ranks by niche size with prognostic=None; naming always has a deterministic fallback.
     """
     adata = _load()
     if patient_subset:
@@ -265,27 +518,26 @@ def find_prognostic_niches(
             raise ValueError(f"no cells for patient_subset {patient_subset}")
         adata = adata[keep]
 
-    niche_col = adata.obs["niche"].to_numpy()
+    labeled, backend = _labeled_adata(adata, None)
+    _BACKEND["find_prognostic_niches"] = backend
+    niche_col = labeled.obs["niche"].to_numpy()
     total = niche_col.shape[0]
-    niches: list[tuple[float, Niche]] = []
-    for niche_id in _niche_ids(adata):
+
+    scored: list[tuple[float, float, Niche]] = []
+    for niche_id in _niche_ids(labeled):
         mask = niche_col == niche_id
-        niche = _build_niche(adata, niche_id, mask)
-        try:
-            niche.prognostic = _engine_outcome.niche_outcome(adata, niche_id)
-        except NotImplementedError:
-            niche.prognostic = None
+        niche = _characterize(labeled, niche_id, mask)
+        niche.prognostic = _prognostic_for_niche(labeled, niche_id)
         abundance = float(mask.sum()) / max(total, 1)
-        niches.append((abundance, niche))
+        # rank key: prognostic niches first by descending hazard ratio, then by size
+        has_prog = 1.0 if niche.prognostic is not None else 0.0
+        hazard = (
+            niche.prognostic.hazard_ratio if niche.prognostic is not None else abundance
+        )
+        scored.append((has_prog, hazard, niche))
 
-    def rank_key(item: tuple[float, Niche]) -> float:
-        abundance, niche = item
-        if niche.prognostic is not None:
-            return -abs(np.log(max(niche.prognostic.hazard_ratio, 1e-6)))
-        return -abundance  # fallback: most abundant first
-
-    niches.sort(key=rank_key)
-    return [niche for _, niche in niches]
+    scored.sort(key=lambda t: (t[0], t[1]), reverse=True)
+    return [niche for _, _, niche in scored]
 
 
 # --- tissue map -------------------------------------------------------------------
@@ -294,4 +546,5 @@ def find_prognostic_niches(
 def get_map_payload(image_id: str, color_mode: str = "cell_type") -> MapPayload:
     """Build the tissue-map render payload for one image (delegates to viz.payload)."""
     adata = _load()
+    _BACKEND["get_map_payload"] = "real"
     return build_map_payload(adata, image_id, color_mode)

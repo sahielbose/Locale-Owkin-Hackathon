@@ -1,25 +1,30 @@
 """Locale MCP server (Lane B).
 
-A remote/HTTP MCP server built on the Python MCP SDK's FastMCP. It exposes the
-tools listed in CLAUDE.md, each wrapping src/locale/mcp_server/tools.py and
-returning schema objects. Wire it into K Pro / Claude as a custom connector
-(remote MCP URL), mirroring Owkin's Pathology Explorer.
+A remote MCP server built on the Python MCP SDK's FastMCP, served over the
+Streamable HTTP transport so it can be added to Claude / K Pro as a REMOTE custom
+connector (an https .../mcp URL), mirroring Owkin's Pathology Explorer. Every tool
+wraps src/locale/mcp_server/tools.py and returns schema objects.
 
-    python -m src.locale.mcp_server.server                 # streamable-http (default)
-    LOCALE_TRANSPORT=stdio python -m src.locale.mcp_server.server
+    python -m src.locale.mcp_server.server                  # streamable-http (default)
     LOCALE_HOST=0.0.0.0 LOCALE_PORT=8000 python -m src.locale.mcp_server.server
+    LOCALE_TRANSPORT=sse python -m src.locale.mcp_server.server     # only if a client needs SSE
 
-Data source: data/mock.h5ad by default; set LOCALE_DATA=data/locale.h5ad for real data.
+Data source: data/locale.h5ad if present, else data/mock.h5ad (override with LOCALE_DATA).
+No authentication for now (add a bearer token / OAuth before exposing publicly).
 """
 
 from __future__ import annotations
 
+import logging
 import os
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
+from pydantic import BaseModel, Field
 
 from ..schema import EnrichmentResult, MapPayload, Niche, SampleRecord
 from . import tools
+
+logger = logging.getLogger("locale.mcp.server")
 
 mcp = FastMCP(
     "locale",
@@ -27,13 +32,50 @@ mcp = FastMCP(
         "Locale reasons about WHERE cells sit in tumor tissue: it finds recurring "
         "cellular niches (for example an immune-excluded tumor core) and links them "
         "to patient survival. Start with list_samples / describe_sample, then "
-        "find_prognostic_niches for the full pipeline, and get_map_payload to render "
-        "the tissue map. Underspecified requests should elicit cohort / cell types / "
-        "n_niches before running."
+        "find_prognostic_niches for the full ranked pipeline, and get_map_payload to "
+        "render the tissue map. If a cohort is missing or ambiguous the niche tools "
+        "will elicit the cohort and niche count before running."
     ),
     host=os.environ.get("LOCALE_HOST", "127.0.0.1"),
     port=int(os.environ.get("LOCALE_PORT", "8000")),
 )
+
+
+class NicheQuery(BaseModel):
+    """Structured input elicited when a niche request omits/ambiguates the cohort."""
+
+    cohort: str = Field(
+        default="breast", description="Cohort to analyze, e.g. 'breast'"
+    )
+    n_niches: int = Field(
+        default=6, ge=2, le=20, description="How many niches to detect"
+    )
+
+
+async def _resolve_cohort(
+    ctx: Context | None, cohort: str | None, n_niches: int | None
+) -> tuple[str, int | None]:
+    """Elicit cohort + n_niches when the request is under-specified; degrade gracefully."""
+    ambiguous = (not cohort) or (cohort not in tools.known_cohorts())
+    if ambiguous and ctx is not None:
+        try:
+            result = await ctx.elicit(
+                message=(
+                    "Which cohort should I analyze, and how many niches should I look "
+                    f"for? Known cohorts: {tools.known_cohorts()}."
+                ),
+                schema=NicheQuery,
+            )
+            if getattr(result, "action", None) == "accept" and result.data is not None:
+                cohort = result.data.cohort or cohort
+                n_niches = result.data.n_niches or n_niches
+        except Exception as exc:  # client does not support elicitation, etc.
+            logger.info("elicitation unavailable (%s); using defaults", exc)
+    if not cohort or cohort not in tools.known_cohorts():
+        if cohort:
+            logger.info("cohort %r not known; defaulting to %r", cohort, tools.COHORT)
+        cohort = tools.COHORT
+    return cohort, n_niches
 
 
 @mcp.tool()
@@ -57,8 +99,16 @@ def compute_enrichment(scope: str = "cohort:breast") -> EnrichmentResult:
 
 
 @mcp.tool()
-def find_niches(cohort: str = "breast", n_niches: int | None = None) -> list[Niche]:
-    """Find recurring cellular niches across the cohort (composition + marker program)."""
+async def find_niches(
+    cohort: str | None = None,
+    n_niches: int | None = None,
+    ctx: Context | None = None,
+) -> list[Niche]:
+    """Find recurring cellular niches across the cohort (composition + marker program).
+
+    If cohort is omitted or ambiguous, elicits the cohort and niche count first.
+    """
+    cohort, n_niches = await _resolve_cohort(ctx, cohort, n_niches)
     return tools.find_niches(cohort=cohort, n_niches=n_niches)
 
 
@@ -69,10 +119,16 @@ def characterize_niche(niche_id: int) -> Niche:
 
 
 @mcp.tool()
-def find_prognostic_niches(
-    cohort: str = "breast", patient_subset: list[str] | None = None
+async def find_prognostic_niches(
+    cohort: str | None = None,
+    patient_subset: list[str] | None = None,
+    ctx: Context | None = None,
 ) -> list[Niche]:
-    """Full pipeline: niches + survival association + naming, ranked by prognostic strength."""
+    """Full pipeline: niches + survival association + naming, ranked worst-survival first.
+
+    If cohort is omitted or ambiguous, elicits the cohort (and niche count) first.
+    """
+    cohort, _ = await _resolve_cohort(ctx, cohort, None)
     return tools.find_prognostic_niches(cohort=cohort, patient_subset=patient_subset)
 
 
@@ -83,7 +139,19 @@ def get_map_payload(image_id: str, color_mode: str = "cell_type") -> MapPayload:
 
 
 def main() -> None:
+    logging.basicConfig(
+        level=os.environ.get("LOCALE_LOG_LEVEL", "INFO"),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     transport = os.environ.get("LOCALE_TRANSPORT", "streamable-http")
+    host = os.environ.get("LOCALE_HOST", "127.0.0.1")
+    port = os.environ.get("LOCALE_PORT", "8000")
+    logger.info(
+        "starting Locale MCP server (transport=%s) on http://%s:%s/mcp",
+        transport,
+        host,
+        port,
+    )
     mcp.run(transport=transport)
 
 
