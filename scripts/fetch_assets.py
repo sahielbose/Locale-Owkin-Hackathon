@@ -9,9 +9,13 @@ sourcing manifest.
 Sketchfab gates downloads behind a free API token (no cost, 2 clicks):
     Settings -> Password & API -> API token.
 
+The Sketchfab download API hands back the glTF as a .zip (scene.gltf + scene.bin +
+textures + license.txt). We extract it into assets/model/ and the viewer loads
+assets/model/scene.gltf. The credit line is read from the archive's own license.txt.
+
 Usage:
     export SKETCHFAB_TOKEN=...
-    python scripts/fetch_assets.py                     # default hero -> assets/cell.glb
+    python scripts/fetch_assets.py                     # default hero -> assets/model/
     python scripts/fetch_assets.py --alt lymphocyte    # an alternate (see CATALOG)
     python scripts/fetch_assets.py --list              # list verified models
 """
@@ -19,10 +23,14 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
+import re
+import shutil
 import sys
 import urllib.request
+import zipfile
 from pathlib import Path
 
 APP_ASSETS = (
@@ -118,7 +126,9 @@ def main() -> int:
     ap.add_argument("--name", help="model name for attribution (with --uid)")
     ap.add_argument("--author", help="author for attribution (with --uid)")
     ap.add_argument(
-        "--out", default=str(APP_ASSETS / "cell.glb"), help="output .glb path"
+        "--out",
+        default=str(APP_ASSETS / "model"),
+        help="output directory for the extracted glTF",
     )
     ap.add_argument("--list", action="store_true", help="list verified models and exit")
     args = ap.parse_args()
@@ -149,42 +159,78 @@ def main() -> int:
             "Get a free token at Sketchfab -> Settings -> Password & API -> API token,\n"
             "then:  export SKETCHFAB_TOKEN=...  and re-run.\n"
             f"Or download manually from https://sketchfab.com/3d-models/{model['uid']}\n"
-            f"and save the .glb as {args.out}.",
+            f"(Download 3D Model -> glTF) and unzip it into {args.out}/.",
             file=sys.stderr,
         )
         return 1
 
-    out = Path(args.out)
-    out.parent.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(args.out)
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Resolving download for {model['name']} ({model['author']})...")
     url = _download_url(model["uid"], token)
-    print("Downloading glb...")
+    print("Downloading glTF archive...")
     with urllib.request.urlopen(url, timeout=300) as resp:
-        out.write_bytes(resp.read())
-    print(f"wrote {out} ({out.stat().st_size / 1e6:.1f} MB)")
+        blob = resp.read()
+    with zipfile.ZipFile(io.BytesIO(blob)) as zf:
+        zf.extractall(out_dir)
+    gltf = next(out_dir.rglob("*.gltf"), None) or next(out_dir.rglob("*.glb"), None)
+    if gltf is None:
+        print(f"No .gltf/.glb found in the archive for {model['uid']}", file=sys.stderr)
+        return 3
+    print(f"extracted {out_dir}/ ({len(blob) / 1e6:.1f} MB, primary: {gltf.name})")
+
+    attribution = _attribution(model, out_dir)
+    attr_path = out_dir.parent / "attribution.json"
+    attr_path.write_text(json.dumps(attribution, indent=2))
+    print(f"wrote {attr_path}")
+    print("Open src/locale/viz/app/hero3d.html to view.")
+    return 0
+
+
+def _attribution(model: dict[str, str], out_dir: Path) -> dict[str, str]:
+    """Prefer the credit line Sketchfab ships in the archive's license.txt."""
+    uid = model["uid"]
+    lic_file = next(out_dir.rglob("license.txt"), None)
+    if lic_file is not None:
+        text = lic_file.read_text(errors="ignore")
+
+        def field(label: str) -> str | None:
+            m = re.search(rf"{label}:\s*(.+)", text)
+            return m.group(1).strip() if m else None
+
+        credit = None
+        m = re.search(r"copy paste this credit[^\n]*\n(.+)", text, re.IGNORECASE)
+        if m:
+            credit = m.group(1).strip()
+        return {
+            "name": field("title") or model["name"],
+            "author": re.sub(r"\s*\(http.*\)$", "", field("author") or model["author"]),
+            "license": "CC-BY 4.0",
+            "license_url": "https://creativecommons.org/licenses/by/4.0/",
+            "source": field("source") or f"https://sketchfab.com/3d-models/{uid}",
+            "credit": credit
+            or f'"{model["name"]}" by {model["author"]}, licensed CC-BY 4.0 via Sketchfab.',
+        }
 
     lic = model.get("license", "CC-BY 4.0")
     is_ccby = lic == "CC-BY 4.0"
-    attribution = {
+    return {
         "name": model["name"],
         "author": model["author"],
         "license": lic,
-        "license_url": (
-            "https://creativecommons.org/licenses/by/4.0/" if is_ccby else ""
-        ),
-        "source": f"https://sketchfab.com/3d-models/{model['uid']}",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/"
+        if is_ccby
+        else "",
+        "source": f"https://sketchfab.com/3d-models/{uid}",
         "credit": (
             f'"{model["name"]}" by {model["author"]}, licensed CC-BY 4.0 via Sketchfab.'
             if is_ccby
             else f'"{model["name"]}" by {model["author"]} (verify license before reuse).'
         ),
     }
-    attr_path = out.parent / "attribution.json"
-    attr_path.write_text(json.dumps(attribution, indent=2))
-    print(f"wrote {attr_path}")
-    print("Open src/locale/viz/app/hero3d.html to view.")
-    return 0
 
 
 if __name__ == "__main__":

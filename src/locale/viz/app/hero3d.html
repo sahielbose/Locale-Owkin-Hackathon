@@ -94,8 +94,8 @@ const empty = document.getElementById("empty");
 const meta = document.getElementById("model-meta");
 
 const params = new URLSearchParams(location.search);
-// Explicit ?model= wins; otherwise the fetched default committed by fetch_assets.py.
-const modelUrl = params.get("model") || "assets/cell.glb";
+// Explicit ?model= wins; otherwise the model fetch_assets.py unpacked into assets/model/.
+const modelUrl = params.get("model") || "assets/model/scene.gltf";
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));

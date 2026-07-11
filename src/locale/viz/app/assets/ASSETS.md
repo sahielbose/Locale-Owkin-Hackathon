@@ -7,8 +7,10 @@ Sketchfab v3 API for its license (`license.slug`) and download flag
 they may be redistributed **with attribution** (which the viewer renders on screen
 and `fetch_assets.py` records to `attribution.json`).
 
-Do not commit large binary `.glb` files casually. Run `scripts/fetch_assets.py`
-(see below) to pull the chosen model into this folder as `cell.glb`.
+The model itself is never committed (everything under `assets/` except this file is
+gitignored). Run `scripts/fetch_assets.py` (see below) to pull the chosen model; it
+unzips the Sketchfab glTF archive into `assets/model/` (`scene.gltf` + `scene.bin` +
+`license.txt`), which is what the viewer loads.
 
 ## Recommended hero (default)
 
@@ -60,11 +62,12 @@ committed asset.
 Downloads require a **free** Sketchfab token (2 clicks, no cost):
 1. Sign in at sketchfab.com, open Settings → Password & API, copy your API token.
 2. `export SKETCHFAB_TOKEN=...`
-3. `python scripts/fetch_assets.py`            # pulls the default hero as assets/cell.glb
+3. `python scripts/fetch_assets.py`            # unzips the default hero to assets/model/
    `python scripts/fetch_assets.py --alt tumor_vasculature`   # or any alternate
 
-`fetch_assets.py` writes `cell.glb` plus `attribution.json` (author, license, URL),
-which the viewer reads to render the required CC-BY credit line.
+`fetch_assets.py` extracts the archive into `assets/model/` and writes
+`attribution.json` (author, license, URL, credit) taken from the archive's own
+`license.txt`, which the viewer reads to render the required CC-BY credit line.
 
 To pull a specific model by id (for example your own private/unlisted upload, which
 your token can access), bypass the catalog:
@@ -74,5 +77,6 @@ your token can access), bypass the catalog:
 Verify the license yourself before reusing a third-party model this way; the catalog
 entries above are the only ones we license-checked.
 
-Manual fallback: on the model page click **Download 3D Model → glTF (.glb)**, drop the
-file here as `cell.glb`, and copy its credit line into `attribution.json`.
+Manual fallback: on the model page click **Download 3D Model → glTF**, and unzip it
+into `assets/model/` so `assets/model/scene.gltf` exists. The `?model=<url>` query
+param also loads any `.glb/.gltf/.obj/.stl` directly without the fetch step.
