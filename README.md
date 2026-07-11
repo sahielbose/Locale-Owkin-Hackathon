@@ -1,4 +1,4 @@
-# Locale
+# Locale: Owkin Rewiring Bio Hackathon
 
 An MCP server for K Pro (Owkin's AI Scientist) that reasons about *where* cells sit
 in tumor tissue. It finds recurring cellular niches (for example an immune-excluded
