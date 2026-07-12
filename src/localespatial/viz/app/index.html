@@ -163,9 +163,14 @@
   #lab .figs { display:grid; gap:16px; margin-bottom:6px; }
   #lab .fig { border:1px solid #111; padding:12px 12px 10px; background:#fff; }
   #lab .fig .ftitle { font-size:13.5px; font-weight:700; color:#111; margin-bottom:8px; }
-  #lab .fig img { width:100%; height:auto; display:block; filter:grayscale(1) contrast(1.04); }
+  #lab .fig img { width:100%; height:auto; display:block; }
   #lab .fig .fcap { font-size:12px; color:#444; margin-top:8px; line-height:1.5; }
   #lab .fig .ftag { float:right; font-size:10.5px; font-weight:700; color:#111; letter-spacing:.05em; border:1px solid #111; padding:0 5px; }
+  #lab table.io { border-collapse:collapse; width:100%; font-size:13px; margin-bottom:6px; }
+  #lab table.io th { text-align:left; vertical-align:top; white-space:nowrap; color:#333; font-weight:700;
+    width:170px; border:1px solid #111; padding:6px 10px; background:#fafafa; }
+  #lab table.io td { border:1px solid #111; padding:6px 10px; }
+  #lab table.io code, #lab .note code { font-family:'Computer Modern Typewriter',ui-monospace,monospace; }
   #lab .hide { display:none; }
 </style>
 </head>
@@ -212,15 +217,15 @@
   "use strict";
   var STAGES = [
     { img:"assets/tissue/0_breast.jpg", stage:"Organ", name:"The whole breast",
-      desc:"A cross-section through the entire breast — every layer, from the skin and fat inward to the glandular ductal-lobular tree, the pectoral muscle, and the chest wall. We dive into the glands.", fov:9000 },
+      desc:"A cross-section through the entire breast, every layer from the skin and fat inward to the glandular ductal-lobular tree, the pectoral muscle, and the chest wall. We dive into the glands.", fov:9000 },
     { img:"assets/tissue/1_duct.jpg", stage:"~1 mm", name:"A milk duct, filled",
-      desc:"A duct in cross-section. Its lumen is packed with ductal carcinoma in situ (DCIS) — cancer still trapped inside the duct, with dark central necrosis.", fov:1600 },
+      desc:"A duct in cross-section. Its lumen is packed with ductal carcinoma in situ (DCIS), cancer still trapped inside the duct, with dark central necrosis.", fov:1600 },
     { img:"assets/tissue/2_tissue.jpg", stage:"~600 µm", name:"Invasive tumor",
       desc:"The cancer has broken out of the ducts and infiltrates the surrounding stroma and fat as irregular glands and cords.", fov:700 },
     { img:"assets/tissue/3_nest.jpg", stage:"~300 µm", name:"Tumor cell nests",
-      desc:"Nests and cords of malignant epithelial cells wind between bands of pink collagen — the tumor's own disordered architecture.", fov:350 },
+      desc:"Nests and cords of malignant epithelial cells wind between bands of pink collagen, the tumor's own disordered architecture.", fov:350 },
     { img:"assets/tissue/4_cells.jpg", stage:"~150 µm", name:"Cancer cells, among normal",
-      desc:"Individual carcinoma cells — big, dark, irregular nuclei — clustered right beside normal fat cells (clear) and collagen. Malignant and normal, side by side.", fov:150 }
+      desc:"Individual carcinoma cells, big, dark, irregular nuclei, clustered right beside normal fat cells (clear) and collagen. Malignant and normal, side by side.", fov:150 }
   ];
   var N = STAGES.length;
   var scene = document.getElementById("scene");
@@ -300,7 +305,7 @@
 <!-- single-page black-and-white validation report (folded into this page) -->
 <div id="lab">
   <div class="bar">
-    <span class="brand">Locale &mdash; spatial-niche findings report</span>
+    <span class="brand">Locale</span>
     <span class="spacer"></span>
     <button class="close" id="lab-close" title="Back to the atlas">Return to atlas</button>
   </div>
@@ -313,8 +318,8 @@
       <h2><span class="secno">1.</span>Cohort and statistical power</h2>
       <div class="stats" id="lf-cohort"></div>
 
-      <h2><span class="secno">2.</span>Niche&ndash;survival association</h2>
-      <p class="note">Cox proportional-hazards ratio (95&thinsp;% CI) for each niche's per-patient abundance, ranked by Benjamini&ndash;Hochberg q. Filled marker = risk (HR&gt;1); open marker = protective (HR&lt;1); &lowast; marks q&lt;0.05.</p>
+      <h2><span class="secno">2.</span>Niche and survival association</h2>
+      <p class="note">Cox proportional-hazards ratio (95&thinsp;% CI) for each niche's per-patient abundance, ranked by Benjamini-Hochberg q. Red marker = risk (HR&gt;1); green marker = protective (HR&lt;1); &lowast; marks q&lt;0.05.</p>
       <div class="forest" id="lf-forest"></div>
       <h3>Niche composition</h3>
       <div class="figs" id="figs-find"></div>
@@ -334,7 +339,7 @@
 
       <h2><span class="secno">5.</span>Validation</h2>
       <p class="note" id="lvd-lead"></p>
-      <h3>Choosing k &mdash; subsample stability sweep</h3>
+      <h3>Choosing k by subsample stability</h3>
       <div class="forest" id="ksweep"></div>
       <div class="figs" id="figs-valid" style="margin-top:16px"></div>
       <h3>Spatial null control and cluster stability</h3>
@@ -344,6 +349,9 @@
 
       <h2><span class="secno">6.</span>Test suite</h2>
       <p class="note" id="lvt-lead"></p>
+      <h3>Inputs (reproduce this run)</h3>
+      <div id="lvt-inputs"></div>
+      <h3>Results</h3>
       <div class="stats" id="lvt-stats"></div>
       <div id="lvt-groups"></div>
     </div>
@@ -361,9 +369,9 @@
   window.addEventListener("keydown", function (e) { if (e.key === "Escape") panel.classList.remove("open"); });
   if (!LAB) { document.getElementById("lf-lead").textContent = "lab_data.js not loaded."; return; }
 
-  var COMP = { tumor:"#1a1a1a", stroma:"#6f6f6f", immune:"#9e9e9e", other:"#cfcfcf", endothelial:"#c0c0c0", vascular:"#b5b5b5" };
+  var COMP = { tumor:"#c0392b", stroma:"#2e8b57", immune:"#2b6cb0", other:"#7d5ba6", endothelial:"#d08a3e", vascular:"#d08a3e" };
   function esc(s){ var d=document.createElement("div"); d.textContent=String(s); return d.innerHTML; }
-  function compColor(k){ return COMP[k] || "#cfcfcf"; }
+  function compColor(k){ return COMP[k] || "#7d5ba6"; }
 
   // Findings
   var f = LAB.findings, c = f.cohort;
@@ -391,16 +399,16 @@
   var LO=0.5, HI=2.0, lgLO=Math.log(LO), lgHI=Math.log(HI);
   function xpct(hr){ return Math.max(0,Math.min(100,(Math.log(hr)-lgLO)/(lgHI-lgLO)*100)); }
   document.getElementById("lf-forest").innerHTML = niches.map(function (n){
-    var risk = n.hazard_ratio >= 1;               // filled = risk, open = protective
-    var fill = risk ? "#111" : "#fff";
+    var risk = n.hazard_ratio >= 1;               // red = risk (HR>1), green = protective
+    var col = risk ? "#c0392b" : "#2e8b57";
     var lo=xpct(n.ci_95[0]), hi=xpct(n.ci_95[1]), pt=xpct(n.hazard_ratio);
     var sig = n.q_fdr<0.05 ? " *" : "";
     var bar = '<div style="position:relative;height:22px">' +
-      '<div style="position:absolute;left:'+xpct(1)+'%;top:0;bottom:0;width:1px;background:#111"></div>' +
-      '<div style="position:absolute;top:10px;left:'+lo+'%;width:'+(hi-lo)+'%;height:1px;background:#111"></div>' +
-      '<div style="position:absolute;top:10px;left:'+lo+'%;width:1px;height:8px;margin-top:-4px;background:#111"></div>' +
-      '<div style="position:absolute;top:10px;left:'+hi+'%;width:1px;height:8px;margin-top:-4px;background:#111"></div>' +
-      '<div style="position:absolute;top:5px;left:'+pt+'%;width:10px;height:10px;border:1.5px solid #111;background:'+fill+';transform:translateX(-50%)"></div></div>';
+      '<div style="position:absolute;left:'+xpct(1)+'%;top:0;bottom:0;width:1px;background:#999"></div>' +
+      '<div style="position:absolute;top:10px;left:'+lo+'%;width:'+(hi-lo)+'%;height:2px;background:'+col+'"></div>' +
+      '<div style="position:absolute;top:10px;left:'+lo+'%;width:1px;height:8px;margin-top:-4px;background:'+col+'"></div>' +
+      '<div style="position:absolute;top:10px;left:'+hi+'%;width:1px;height:8px;margin-top:-4px;background:'+col+'"></div>' +
+      '<div style="position:absolute;top:5px;left:'+pt+'%;width:10px;height:10px;border-radius:50%;border:1.5px solid #fff;background:'+col+';box-shadow:0 0 0 1px '+col+';transform:translateX(-50%)"></div></div>';
     return '<div class="frow"><div class="fname" title="'+esc(n.name)+'">'+esc(n.name)+sig+'</div>'+bar+
       '<div class="fstat">HR '+n.hazard_ratio.toFixed(2)+' · q '+n.q_fdr.toFixed(2)+'</div></div>';
   }).join("") +
@@ -417,7 +425,7 @@
     var chips = (n.top_metaclusters||[]).map(function (m){ return '<span class="chip">'+esc(m)+'</span>'; }).join("");
     return '<div class="card"><div class="ctop"><span class="nm">'+esc(n.name)+'</span>'+
       '<span class="hr" style="color:'+col+'">HR '+n.hazard_ratio.toFixed(2)+'</span></div>'+
-      '<div class="cmeta">95% CI '+n.ci_95[0].toFixed(2)+'–'+n.ci_95[1].toFixed(2)+' · p '+n.p_raw.toFixed(3)+' · q '+n.q_fdr.toFixed(2)+'</div>'+
+      '<div class="cmeta">95% CI '+n.ci_95[0].toFixed(2)+' to '+n.ci_95[1].toFixed(2)+' · p '+n.p_raw.toFixed(3)+' · q '+n.q_fdr.toFixed(2)+'</div>'+
       '<div class="compbar">'+bar+'</div>'+
       '<div class="cmeta">'+(n.n_cells?n.n_cells.toLocaleString()+' cells · '+n.n_cores+' cores':'')+'</div>'+
       '<div class="chips">'+chips+'</div></div>';
@@ -427,7 +435,29 @@
   var m = LAB.meta, tests = LAB.tests || [];
   document.getElementById("lvt-lead").innerHTML =
     "The suite that guards the engine and the MCP server. Every function is checked against the committed " +
-    "<b>mock cohort</b> and the shared schema, so the analysis can't silently drift. Run with <code>pytest -q</code>.";
+    "<b>mock cohort</b> and the shared schema, so the analysis can't silently drift.";
+
+  // the actual inputs the suite runs against
+  var inp = LAB.inputs;
+  if (inp) {
+    var shape = [];
+    if (inp.n_cells != null) shape.push(inp.n_cells.toLocaleString() + " cells");
+    if (inp.n_markers != null) shape.push(inp.n_markers + " protein markers");
+    if (inp.n_images != null) shape.push(inp.n_images + " IMC images");
+    if (inp.n_niches != null) shape.push(inp.n_niches + " niches");
+    if (inp.has_survival != null) shape.push(inp.has_survival ? "survival present" : "no survival");
+    var io = "<table class=\"io\">" +
+      "<tr><th>Command</th><td><code>" + esc(inp.command || "pytest -q") + "</code></td></tr>" +
+      "<tr><th>Input object</th><td><code>" + esc(inp.data_file || "") + "</code>" +
+        (shape.length ? " (" + shape.join(", ") + ")" : "") + "</td></tr>" +
+      (inp.cell_types && inp.cell_types.length
+        ? "<tr><th>Cell types</th><td>" + inp.cell_types.map(esc).join(", ") + "</td></tr>" : "") +
+      "<tr><th>Schema contract</th><td><code>" + esc(inp.schema || "") + "</code></td></tr>" +
+      "</table>" +
+      '<div class="vsmall">Every test loads this committed object and asserts against the Pydantic ' +
+      "schema, so results are reproducible from the repository alone.</div>";
+    document.getElementById("lvt-inputs").innerHTML = io;
+  }
   var tstats = [
     [m.passed+"/"+m.total, "passing", m.failed ? m.failed+" failing" : "all green"],
     [m.duration_s+"s", "wall time", ""],
@@ -443,7 +473,7 @@
   document.getElementById("lvt-groups").innerHTML = (m.files||[]).map(function (file){
     var arr = byFile[file]||[];
     var rows = arr.map(function (t){
-      var mark = t.outcome==="passed" ? "&#10003;" : t.outcome==="failed" ? "&#10007;" : "&ndash;";
+      var mark = t.outcome==="passed" ? "&#10003;" : t.outcome==="failed" ? "&#10007;" : "&#183;";
       return '<div class="trow"><span class="dot">'+mark+'</span>'+
         '<span class="tn">'+esc(t.label)+' <small>'+esc(t.name)+'</small></span>'+
         '<span class="ms">'+t.ms+' ms</span></div>';
@@ -457,16 +487,16 @@
   if (eng) {
     // enrichment heatmap
     document.getElementById("le-lead").innerHTML =
-      "Which cell types sit next to each other across the cohort &mdash; squidpy neighborhood-enrichment " +
-      "z-scores against a permutation null. Darker cells are a stronger association; the sign of the value " +
-      "gives the direction (+ co-locate, &minus; avoid). " + esc(eng.cohort_label) + ".";
+      "Which cell types sit next to each other across the cohort, as squidpy neighborhood-enrichment " +
+      "z-scores against a permutation null. Red pairs co-locate more than chance; blue pairs avoid each " +
+      "other. " + esc(eng.cohort_label) + ".";
     var ct = eng.enrichment.cell_types, Z = eng.enrichment.zscores, zmax = 0;
     Z.forEach(function (r) { r.forEach(function (v) { zmax = Math.max(zmax, Math.abs(v)); }); });
     zmax = zmax || 1;
     function zcell(v) {
-      var t = Math.min(1, Math.abs(v) / zmax);        // magnitude -> darkness
-      var L = Math.round(100 - 74 * t);               // 100 (white) .. 26 (dark)
-      return { bg: "hsl(0,0%," + L + "%)", fg: L < 55 ? "#fff" : "#111" };
+      var t = Math.max(-1, Math.min(1, v / zmax)), a = Math.abs(t);
+      var L = Math.round(100 - 60 * a), hue = t >= 0 ? 6 : 212, sat = a < 0.04 ? 0 : 62;
+      return { bg: "hsl(" + hue + "," + sat + "%," + L + "%)", fg: L < 52 ? "#fff" : "#111" };
     }
     var h = "<tr><th></th>" + ct.map(function (c) { return '<th class="col"><span>' + esc(c) + "</span></th>"; }).join("") + "</tr>";
     Z.forEach(function (row, i) {
@@ -492,13 +522,15 @@
       return '<svg width="100%" viewBox="0 0 ' + W + " " + H + '">' +
         '<line x1="' + p + '" y1="' + (H - p) + '" x2="' + (W - p) + '" y2="' + (H - p) + '" stroke="#bbb"/>' +
         '<line x1="' + p + '" y1="' + p + '" x2="' + p + '" y2="' + (H - p) + '" stroke="#bbb"/>' +
-        ln(km.high, "#111", false) + ln(km.low, "#111", true) + "</svg>";
+        ln(km.high, "#2b6cb0", false) + ln(km.low, "#d08a3e", true) + "</svg>";
     }
     document.getElementById("ls-cards").innerHTML = (eng.survival || []).map(function (s) {
+      var hc = s.hazard_ratio >= 1 ? "#c0392b" : "#2e8b57";
       return '<div class="kmcard"><div class="ktop"><span class="knm">' + esc(s.name) + "</span>" +
-        '<span class="khr">HR ' + s.hazard_ratio.toFixed(2) + "</span></div>" +
+        '<span class="khr" style="color:' + hc + '">HR ' + s.hazard_ratio.toFixed(2) + "</span></div>" +
         '<div class="vsmall">p ' + s.pvalue.toFixed(3) + " &middot; n=" + s.n_patients + "</div>" + kmSvg(s.km) +
-        '<div class="kmlegend"><span><i></i>high abundance</span><span><i class="d"></i>low</span></div></div>';
+        '<div class="kmlegend"><span><i style="border-top-color:#2b6cb0"></i>high abundance</span>' +
+        '<span><i class="d" style="border-top-color:#d08a3e"></i>low</span></div></div>';
     }).join("") || '<div class="vsmall">No survival-viable niches in this cohort.</div>';
 
     // validation
@@ -517,7 +549,7 @@
         "</b> across subsampled re-clusterings (1.0 = identical niches every run).</div></div>";
     document.getElementById("lvd-markers").innerHTML = (val.markers || []).map(function (m) {
       var ev = m.corr != null
-        ? 'marker–composition correlation <b style="color:var(--ink)">' + m.corr.toFixed(2) + "</b>"
+        ? 'marker-composition correlation <b style="color:var(--ink)">' + m.corr.toFixed(2) + "</b>"
         : "";
       var top = (m.top || []).length ? '<div class="chips" style="margin-top:8px">' +
         m.top.slice(0, 6).map(function (x) { return '<span class="chip">' + esc(x) + "</span>"; }).join("") + "</div>" : "";
@@ -527,7 +559,7 @@
     }).join("");
   } else {
     ["le-lead", "ls-lead", "lvd-lead"].forEach(function (id) {
-      document.getElementById(id).textContent = "Engine graphs unavailable — rebuild lab_data.js with the engine env.";
+      document.getElementById(id).textContent = "Engine graphs unavailable. Rebuild lab_data.js with the engine env.";
     });
   }
 
@@ -561,12 +593,12 @@
     var xlab = ks.ks.map(function (k) {
       return '<text x="' + X(k) + '" y="' + (H - 14) + '" fill="#555" font-size="10" text-anchor="middle">' + k + "</text>";
     }).join("");
-    var dots = ks.ks.map(function (k, i) { return '<circle cx="' + X(k) + '" cy="' + Y(ks.ari[i]) + '" r="3.5" fill="#111"/>'; }).join("");
+    var dots = ks.ks.map(function (k, i) { return '<circle cx="' + X(k) + '" cy="' + Y(ks.ari[i]) + '" r="3.5" fill="#2b6cb0"/>'; }).join("");
     var poly = ks.ks.map(function (k, i) { return X(k) + "," + Y(ks.ari[i]); }).join(" ");
     document.getElementById("ksweep").innerHTML =
       '<svg width="100%" viewBox="0 0 ' + W + " " + H + '">' + grid + xlab +
-      '<line x1="' + X(ks.chosen) + '" y1="' + pt + '" x2="' + X(ks.chosen) + '" y2="' + (H - pb) + '" stroke="#111" stroke-width="1" stroke-dasharray="4 3"/>' +
-      '<polyline fill="none" stroke="#111" stroke-width="1.6" points="' + poly + '"/>' + dots +
+      '<line x1="' + X(ks.chosen) + '" y1="' + pt + '" x2="' + X(ks.chosen) + '" y2="' + (H - pb) + '" stroke="#c0392b" stroke-width="1.5" stroke-dasharray="4 3"/>' +
+      '<polyline fill="none" stroke="#2b6cb0" stroke-width="1.8" points="' + poly + '"/>' + dots +
       '<text x="' + (pl + (W - pl - pr) / 2) + '" y="' + (H - 1) + '" fill="#555" font-size="10" text-anchor="middle">k (number of niches)</text>' +
       "</svg>" +
       '<div class="vsmall" style="margin-top:8px">Subsample stability (ARI) as the niche count k varies. ' +
@@ -574,7 +606,7 @@
       ") and is the chosen number of niches. From scripts/run_basel_niches.py on the Basel cohort.</div>";
   }
 
-  // single page — no tabs; everything is stacked as one scrollable report.
+  // single page, no tabs; everything is stacked as one scrollable report.
 })();
 </script>
 </body>
