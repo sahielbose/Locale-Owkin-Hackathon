@@ -138,6 +138,24 @@ def get_map_payload(image_id: str, color_mode: str = "cell_type") -> MapPayload:
     return tools.get_map_payload(image_id=image_id, color_mode=color_mode)
 
 
+@mcp.tool()
+def describe_niches() -> list[dict]:
+    """List the discovered cellular niches (name, major-class composition, size)."""
+    return tools.describe_niches()
+
+
+@mcp.tool()
+def correlate_niche_outcome(niche_id: int) -> dict:
+    """Niche abundance vs overall survival, shipped WITH its statistical context.
+
+    Returns hazard_ratio, ci_95, p_raw, n_hypotheses_tested, q_fdr, p_selection_aware,
+    n_events, min_detectable_hr (80% power), and a verdict ('supported' |
+    'insufficient evidence'). The context ships unasked so the caller cannot mistake a
+    point estimate for a finding.
+    """
+    return tools.correlate_niche_outcome(niche_id)
+
+
 def main() -> None:
     logging.basicConfig(
         level=os.environ.get("LOCALE_LOG_LEVEL", "INFO"),

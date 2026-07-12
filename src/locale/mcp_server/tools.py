@@ -23,6 +23,7 @@ TEMPORARY adjacency z-score used by compute_enrichment until engine.enrichment l
 from __future__ import annotations
 
 import functools
+import json
 import logging
 import os
 from pathlib import Path
@@ -42,6 +43,9 @@ _TOP_MARKERS = 6
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _MOCK = _REPO_ROOT / "data" / "mock.h5ad"
 _REAL = _REPO_ROOT / "data" / "locale.h5ad"
+_FINDINGS = (
+    _REPO_ROOT / "demo" / "findings.json"
+)  # precomputed demo path (scripts/precompute_findings.py)
 
 # Records which backend served each tool most recently ("real" | "fallback").
 _BACKEND: dict[str, str] = {}
@@ -548,3 +552,34 @@ def get_map_payload(image_id: str, color_mode: str = "cell_type") -> MapPayload:
     adata = _load()
     _BACKEND["get_map_payload"] = "real"
     return build_map_payload(adata, image_id, color_mode)
+
+
+# --- precomputed findings (the demo path; served instantly from cache) -------------
+
+
+@functools.lru_cache(maxsize=1)
+def _findings() -> dict:
+    data = json.loads(_FINDINGS.read_text())
+    data["niches"] = {int(k): v for k, v in data["niches"].items()}
+    return data
+
+
+def correlate_niche_outcome(niche_id: int) -> dict:
+    """One niche's abundance vs overall survival, with the full honesty bundle."""
+    from ..engine.outcome import correlate_niche_outcome as _engine
+
+    return _engine(_findings(), int(niche_id))
+
+
+def describe_niches() -> list[dict]:
+    """The niche catalog (name, major composition, size) from the precomputed cache."""
+    return [
+        {
+            "niche_id": k,
+            "name": v["name"],
+            "composition": v["composition_major"],
+            "n_cells": v["n_cells"],
+            "n_cores": v["n_cores"],
+        }
+        for k, v in sorted(_findings()["niches"].items())
+    ]
