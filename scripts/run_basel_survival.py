@@ -109,7 +109,7 @@ def main() -> None:
 
     print("\n=== CONFIRMATORY (pre-registered) ===")
     for niche, name, want in [
-        (H1_NICHE, "H1 niche 7 (immune-excluded) -> WORSE OS", "hr>1"),
+        (H1_NICHE, "H1 niche 7 (tumor-rich, immune-poor) -> WORSE OS", "hr>1"),
         (H2_NICHE, "H2 niche 1 (immune-rich) -> BETTER OS", "hr<1"),
     ]:
         r = res[niche]
@@ -201,7 +201,7 @@ def main() -> None:
         pat.OSmonth[~hi], pat.event[~hi], label=f"low (n={int((~hi).sum())})"
     ).plot_survival_function(ax=ax, color="#2980b9")
     ax.set_title(
-        f"Niche {H1_NICHE} (immune-excluded) vs OS, log-rank p={lr.p_value:.4f}"
+        f"Niche {H1_NICHE} (tumor-rich, immune-poor) vs OS, log-rank p={lr.p_value:.4f}"
     )
     ax.set_xlabel("months")
     ax.set_ylim(0, 1.02)

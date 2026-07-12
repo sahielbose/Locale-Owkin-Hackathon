@@ -105,7 +105,7 @@ def main() -> None:
         }
         top = pd.Series(mc[m]).value_counts(normalize=True).head(3)
         tag = (
-            "  <- tumor immune-EXCLUDED"
+            "  <- tumor-rich, immune-poor"
             if fr["tumor"] > 0.6 and fr["immune"] < 0.05
             else "  <- immune-RICH" if fr["immune"] > 0.3 else ""
         )
