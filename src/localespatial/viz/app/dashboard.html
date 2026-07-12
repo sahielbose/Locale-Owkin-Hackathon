@@ -84,7 +84,7 @@
   <section class="panel">
     <h2>Co-location &middot; who sits next to whom</h2>
     <div id="heatmap"></div>
-    <div class="heat-note">Neighborhood-enrichment z, averaged to the four major classes. Blue = adjacent more than chance, orange = avoided. Tumor and immune avoid each other.</div>
+    <div class="heat-note" id="heatnote">Neighborhood-enrichment z, averaged to the four major classes. Blue = adjacent more than chance, orange = avoided.</div>
   </section>
 
   <section class="panel">
@@ -177,6 +177,11 @@
     }
     html += "</table>";
     document.getElementById("heatmap").innerHTML = html;
+    var ti = z[3][0], wc = D.enrichment.tumor_immune_within_core;
+    document.getElementById("heatnote").innerHTML =
+      "z over the 4 major classes, <b>global</b> label permutation. Blue = adjacent more than chance, orange = avoided. "+
+      "Tumor vs immune = <b>"+ti+"</b> globally; the within-core permutation (the correct null, holding each core's composition fixed) gives <b>"+
+      (wc==null?"n/a":wc)+"</b>, still clearly negative.";
   })();
 
   // ---- niche cards (the honesty bundle is the product) ----

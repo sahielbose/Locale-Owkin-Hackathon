@@ -290,6 +290,7 @@
   },
   "enrichment": {
     "granularity": "25 unique cell-type names (duplicate T-cell and Macrophage metaclusters merged)",
+    "permutation": "global (squidpy default); within-core reported alongside",
     "names": [
       "B and T cells",
       "B cells",
@@ -1054,6 +1055,42 @@
           8
         ]
       ]
-    }
+    },
+    "within_core_major_blocks": {
+      "cell_types": [
+        "immune",
+        "endothelial",
+        "stroma",
+        "tumor"
+      ],
+      "zscores": [
+        [
+          13,
+          0,
+          -2,
+          -10
+        ],
+        [
+          0,
+          36,
+          6,
+          -8
+        ],
+        [
+          -2,
+          6,
+          7,
+          -7
+        ],
+        [
+          -10,
+          -8,
+          -7,
+          1
+        ]
+      ]
+    },
+    "tumor_immune_global": -32,
+    "tumor_immune_within_core": -10
   }
 }

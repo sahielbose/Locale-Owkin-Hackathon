@@ -76,11 +76,17 @@ def _major_enrichment(findings: dict) -> dict:
     """The frozen 4-class neighborhood enrichment, read from demo/findings.json.
 
     findings['enrichment'] is computed over the 25 unique cell-type names, so the
-    tumor vs immune headline reads -32, matching the report, the figures, and the
-    PDF. Aggregating the object's cached 27-id matrix here would give -22 and disagree
-    with the report, so this is read, not recomputed.
+    tumor vs immune headline reads -32 (global permutation), matching the report and
+    the PDF. We also carry the within-core value (the correct null) so the panel can
+    show both: -32 globally, -10 within core. Read, not recomputed.
     """
-    return findings["enrichment"]["major_blocks"]
+    enr = findings["enrichment"]
+    mb = enr["major_blocks"]
+    return {
+        "cell_types": mb["cell_types"],
+        "zscores": mb["zscores"],
+        "tumor_immune_within_core": enr.get("tumor_immune_within_core"),
+    }
 
 
 def _cards(findings: dict) -> list[dict]:
