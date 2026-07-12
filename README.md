@@ -181,6 +181,8 @@ The off-diagonal is where the biology sits. Tumor and immune cells avoid each ot
 
 The niche discovery recovers this independently: the immune-excluded niche 7 (section 10) is dominated by the HR-low-CK tumor phenotype, the tumor population that sits furthest from immune cells here. The exclusion is measured from the coordinates alone, with no reference to any published result.
 
+Permutation scope: this z uses a global label permutation (squidpy's default), which shuffles cell-type labels across all cores and so conflates within-core spatial organization with between-core compositional heterogeneity. A 97%-tumor core, globally shuffled, is scored against a cohort-wide label mix, which inflates the magnitude. The correct null is a within-core permutation (`library_key='core'`), which holds each core's composition fixed. Recomputed that way, the tumor vs immune block mean is -10 rather than -32: smaller, but still clearly negative, so the exclusion survives the correct null. We report both. The within-core compartmentalization is also visible directly in the hero figure at the top, and the ARI validation (section 11) is computed on partitions and is invariant to the permutation scope.
+
 The enrichment is computed over the 25 unique cell-type names (the two "T cells" and two "Macrophages" metaclusters merged into single cell types), which is the granularity the technical report and pitch quote. The 27 metacluster ids split those immune populations and average the same block to -22; the 25-name value is -32. Every figure here is regenerated from the committed pipeline by [`scripts/make_figures.py`](scripts/make_figures.py).
 
 ## 10. Niche discovery
@@ -466,6 +468,7 @@ All logging goes to stderr so it cannot corrupt the stdio JSON-RPC stream. Witho
 - Power. 79 events is underpowered for modest hazard ratios. The negative result on H1 is a statement about this cohort, not about the biology.
 - Single cohort. The Zurich cohort (about 70 patients) is in the same archive and is the natural external replication. We did not analyse it in the time available.
 - Cell types come from the authors. We use their PhenoGraph assignments and metacluster map and did not re-derive cell types from the marker channels. This keeps the ARI comparison fair, but it means the pipeline has not been tested end to end from raw marker intensities.
+- Enrichment permutation scope. The headline enrichment z uses a global label permutation, which conflates within-core spatial organization with between-core compositional heterogeneity. We report the within-core permutation (the correct null) alongside it: tumor vs immune is -10 within core versus -32 globally, so the exclusion survives at lower magnitude. Within-core compartmentalization is also confirmed by visualization, and the ARI validation is computed on partitions and is invariant to this. The within-core permutation is the correct primary going forward.
 - Breast cancer only, one platform (IMC on a TMA). Generalisation to spot-based spatial transcriptomics is supported by the design but untested.
 
 ## 20. Citation, license, and contributors

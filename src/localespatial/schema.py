@@ -139,6 +139,11 @@ class RiskModelCard(BaseModel):
     cv_folds: int
     c_index_cv: float
     c_index_ci_95: list[float]
+    c_index_in_sample: (
+        float  # full model scored on all training patients: optimistic, biased high
+    )
+    c_index_out_of_fold: float  # the honest cross-validated number (equals c_index_cv), named for the report
+    optimism_gap: float  # c_index_in_sample - c_index_out_of_fold: how much the in-sample number overstates
     calibration_slope: float
     evidence: RiskEvidence
     coefficients: dict[int, NicheCoefficient]  # niche_id -> coefficient block

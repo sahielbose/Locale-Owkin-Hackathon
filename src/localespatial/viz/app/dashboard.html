@@ -58,6 +58,18 @@
   .verdict.supported{background:rgba(55,192,127,.16);color:var(--good);border:1px solid rgba(55,192,127,.32)}
   .note{margin-top:8px;font-size:11px;color:var(--muted);font-style:italic;line-height:1.5}
   .flow{color:var(--muted);font-size:11.5px}
+  /* risk panel */
+  .rlede{font-size:12.5px;color:var(--ink);margin:0 0 12px;line-height:1.55}
+  .riskgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:4px}
+  .rstat{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px}
+  .rstat .lab{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+  .rstat .val{font-size:30px;font-weight:800;margin-top:6px;line-height:1}
+  .rstat .cap{font-size:11px;color:var(--muted);margin-top:7px;line-height:1.45}
+  .rstat.insample .val{color:var(--muted)}
+  .rstat.oof{border-color:rgba(110,168,254,.5)}
+  .rstat.oof .val{color:var(--accent)}
+  .rstat.gap .val{color:var(--bad)}
+  @media (max-width:720px){.riskgrid{grid-template-columns:1fr}}
   @media (max-width:920px){main{grid-template-columns:1fr}}
 </style>
 </head>
@@ -72,7 +84,7 @@
   <section class="panel">
     <h2>Co-location &middot; who sits next to whom</h2>
     <div id="heatmap"></div>
-    <div class="heat-note">Neighborhood-enrichment z, averaged to the four major classes. Blue = adjacent more than chance, orange = avoided. Tumor and immune avoid each other.</div>
+    <div class="heat-note" id="heatnote">Neighborhood-enrichment z, averaged to the four major classes. Blue = adjacent more than chance, orange = avoided.</div>
   </section>
 
   <section class="panel">
@@ -84,6 +96,11 @@
     </h2>
     <div id="stage"><canvas id="map"></canvas></div>
     <div class="legend" id="legend"></div>
+  </section>
+
+  <section class="panel full" id="riskpanel">
+    <h2>Risk model &middot; the number we declined to report</h2>
+    <div id="risk"></div>
   </section>
 
   <section class="panel full">
@@ -110,6 +127,32 @@
     D.n_cells.toLocaleString() + " cells · " + D.n_patients + " patients · " +
     D.n_images + " cores · " + D.n_niches + " niches · " + D.n_events + " deaths";
 
+  // ---- risk model: in-sample vs out-of-fold c-index ----
+  (function(){
+    var R = D.risk;
+    if(!R){ var p=document.getElementById("riskpanel"); if(p) p.style.display="none"; return; }
+    var ci = R.c_index_ci_95;
+    var vClass = R.verdict==="supported" ? "supported" : "insufficient";
+    document.getElementById("risk").innerHTML =
+      "<div class='rlede'>A multivariate Cox risk model over the "+R.n_features+
+      " niches ("+R.n_patients+" patients, "+R.n_events+" deaths). In sample it looks predictive. "+
+      "Out of fold its discrimination includes chance (0.50). Locale reports the out-of-fold "+
+      "number and refuses to let anyone act on it.</div>"+
+      "<div class='riskgrid'>"+
+        "<div class='rstat insample'><div class='lab'>c-index, in-sample</div>"+
+          "<div class='val'>"+R.c_index_in_sample.toFixed(2)+"</div>"+
+          "<div class='cap'>the flattering number: the model has already seen every outcome. We do not report this.</div></div>"+
+        "<div class='rstat oof'><div class='lab'>c-index, out-of-fold</div>"+
+          "<div class='val'>"+R.c_index_out_of_fold.toFixed(2)+"</div>"+
+          "<div class='cap'>5-fold cross-validated, 95% CI ["+ci[0].toFixed(2)+", "+ci[1].toFixed(2)+"]. This is the honest one.</div></div>"+
+        "<div class='rstat gap'><div class='lab'>optimism gap</div>"+
+          "<div class='val'>"+(R.optimism_gap>=0?"+":"")+R.optimism_gap.toFixed(2)+"</div>"+
+          "<div class='cap'>how much in-sample overstates. The gap is the overfitting, made visible.</div></div>"+
+      "</div>"+
+      "<span class='verdict "+vClass+"'>"+R.verdict+"</span>"+
+      "<div class='note'>"+R.verdict_reason+"</div>";
+  })();
+
   // ---- enrichment heatmap ----
   (function(){
     var ct = D.enrichment.cell_types, z = D.enrichment.zscores;
@@ -134,6 +177,11 @@
     }
     html += "</table>";
     document.getElementById("heatmap").innerHTML = html;
+    var ti = z[3][0], wc = D.enrichment.tumor_immune_within_core;
+    document.getElementById("heatnote").innerHTML =
+      "z over the 4 major classes, <b>global</b> label permutation. Blue = adjacent more than chance, orange = avoided. "+
+      "Tumor vs immune = <b>"+ti+"</b> globally; the within-core permutation (the correct null, holding each core's composition fixed) gives <b>"+
+      (wc==null?"n/a":wc)+"</b>, still clearly negative.";
   })();
 
   // ---- niche cards (the honesty bundle is the product) ----

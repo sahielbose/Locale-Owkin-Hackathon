@@ -357,13 +357,20 @@ def correlate_niche_outcome(
 ) -> dict:
     """Assemble the honest outcome bundle for one niche from a cohort_survival summary.
 
-    verdict is 'supported' only if the FDR q survives alpha; otherwise 'insufficient
-    evidence'. The min_detectable_hr and p_selection_aware ship regardless so the caller
-    sees WHY (usually: the effect is inside the underpowered band and the best of many
-    niches is no better than chance)."""
+    verdict is 'supported' only if the FDR q survives alpha AND the selection-aware p is
+    below alpha; otherwise 'insufficient evidence'. The selection-aware p is a GLOBAL
+    statement: if the best of all niches under permuted survival is no better than chance
+    (p_selection_aware >= alpha), then no single niche can be supported whatever its own
+    q. Gating on q alone would stamp a niche 'supported' while the panel as a whole is
+    chance, which contradicts the thesis. The min_detectable_hr and p_selection_aware
+    ship regardless so the caller sees WHY."""
     c = cohort_summary["cohort"]
     n = cohort_summary["niches"][int(niche_id)]
-    supported = np.isfinite(n["q_fdr"]) and n["q_fdr"] < alpha
+    supported = (
+        np.isfinite(n["q_fdr"])
+        and n["q_fdr"] < alpha
+        and float(c.get("p_selection_aware", 1.0)) < alpha
+    )
     return {
         "niche_id": int(niche_id),
         "hazard_ratio": round(n["hazard_ratio"], 3),

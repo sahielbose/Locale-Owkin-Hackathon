@@ -49,6 +49,6 @@ src/locale/viz/app/assets/*
 .idea/
 .vscode/
 
-# Generated risk model card (regenerate with scripts/run_basel_risk.py; synthetic unless real Basel data present)
-reports/risk_model_card.json
-reports/risk_model_card.json
+# reports/risk_model_card.json IS committed: the real-Basel model card (_source:
+# real_basel), so the in-sample vs out-of-fold c-index is in the repo without the data.
+# Regenerate with scripts/run_basel_risk.py (real cohort) or it falls back to synthetic.

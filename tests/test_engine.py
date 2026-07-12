@@ -17,7 +17,11 @@ from src.localespatial.engine.characterize import characterize_niche
 from src.localespatial.engine.enrichment import compute_enrichment
 from src.localespatial.engine.graph import build_spatial_graph, cross_image_edges
 from src.localespatial.engine.niches import find_niches
-from src.localespatial.engine.outcome import niche_outcome, rank_prognostic_niches
+from src.localespatial.engine.outcome import (
+    correlate_niche_outcome,
+    niche_outcome,
+    rank_prognostic_niches,
+)
 from src.localespatial.engine.validate import (
     marker_validation,
     shuffle_negative_control,
@@ -119,6 +123,28 @@ def test_niche_outcome_returns_valid_prognostic(adata):
     assert np.isfinite(prog.hazard_ratio)
     assert prog.ci_low <= prog.hazard_ratio <= prog.ci_high
     assert prog.n_patients >= 2
+
+
+def test_correlate_verdict_requires_selection_aware_p():
+    """A good FDR q is NOT enough: if the global selection-aware p says the best of all
+    niches is chance (>= alpha), no single niche can be 'supported' whatever its q."""
+    summary = {
+        "cohort": {
+            "n_hypotheses_tested": 12,
+            "n_events": 79,
+            "min_detectable_hr": 1.37,
+            "p_selection_aware": 0.44,  # best-of-12 is chance
+        },
+        "niches": {
+            3: {"hazard_ratio": 0.6, "ci_95": [0.4, 0.9], "p_raw": 0.001, "q_fdr": 0.04}
+        },
+    }
+    # q = 0.04 clears alpha, but p_selection_aware = 0.44 does not -> insufficient
+    assert correlate_niche_outcome(summary, 3)["verdict"] == "insufficient evidence"
+
+    # flip ONLY the selection-aware p below alpha: now both gates clear -> supported
+    summary["cohort"]["p_selection_aware"] = 0.01
+    assert correlate_niche_outcome(summary, 3)["verdict"] == "supported"
 
 
 def test_rank_prognostic_niches_is_bh_ordered(adata):

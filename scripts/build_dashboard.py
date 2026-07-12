@@ -24,6 +24,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = ROOT / "src" / "localespatial" / "viz" / "app"
 FINDINGS = ROOT / "demo" / "findings.json"
+RISK_CARD = ROOT / "reports" / "risk_model_card.json"
 
 MAP_CORE = "BaselTMA_SP43_144_X15Y1"  # 32% tumor, compartmentalised: shows the niches
 MAP_MAX_PER_CORE = 10_000  # never ship a whole core's worth of points to a canvas
@@ -47,15 +48,45 @@ def _data_path() -> Path:
     return path
 
 
+def _risk() -> dict | None:
+    """The risk model card's honest evaluation for the dashboard risk panel.
+
+    Reads reports/risk_model_card.json (scripts/run_basel_risk.py). The panel exists to
+    show the in-sample c-index next to the out-of-fold one: the number we declined to
+    report, beside the one we did. Returns None if the card has not been generated.
+    """
+    if not RISK_CARD.exists():
+        return None
+    card = json.loads(RISK_CARD.read_text())
+    ev = card["evidence"]
+    return {
+        "c_index_in_sample": card["c_index_in_sample"],
+        "c_index_out_of_fold": card["c_index_out_of_fold"],
+        "c_index_ci_95": card["c_index_ci_95"],
+        "optimism_gap": card["optimism_gap"],
+        "n_patients": card["n_train_patients"],
+        "n_events": card["n_events"],
+        "n_features": len(card["features"]),
+        "verdict": ev["verdict"],
+        "verdict_reason": ev["verdict_reason"],
+    }
+
+
 def _major_enrichment(findings: dict) -> dict:
     """The frozen 4-class neighborhood enrichment, read from demo/findings.json.
 
     findings['enrichment'] is computed over the 25 unique cell-type names, so the
-    tumor vs immune headline reads -32, matching the report, the figures, and the
-    PDF. Aggregating the object's cached 27-id matrix here would give -22 and disagree
-    with the report, so this is read, not recomputed.
+    tumor vs immune headline reads -32 (global permutation), matching the report and
+    the PDF. We also carry the within-core value (the correct null) so the panel can
+    show both: -32 globally, -10 within core. Read, not recomputed.
     """
-    return findings["enrichment"]["major_blocks"]
+    enr = findings["enrichment"]
+    mb = enr["major_blocks"]
+    return {
+        "cell_types": mb["cell_types"],
+        "zscores": mb["zscores"],
+        "tumor_immune_within_core": enr.get("tumor_immune_within_core"),
+    }
 
 
 def _cards(findings: dict) -> list[dict]:
@@ -74,7 +105,13 @@ def _cards(findings: dict) -> list[dict]:
             "p_selection_aware": round(float(cohort["p_selection_aware"]), 3),
             "n_events": int(cohort["n_events"]),
             "min_detectable_hr": round(float(cohort["min_detectable_hr"]), 3),
-            "verdict": "supported" if q < alpha else "insufficient evidence",
+            # Same gate as engine.correlate_niche_outcome: q AND the global
+            # selection-aware p must both clear alpha, or the verdict is insufficient.
+            "verdict": (
+                "supported"
+                if q < alpha and float(cohort.get("p_selection_aware", 1.0)) < alpha
+                else "insufficient evidence"
+            ),
         }
         cards.append(
             {
@@ -160,6 +197,7 @@ def main() -> None:
         "enrichment": _major_enrichment(findings),
         "niches": cards,
         "map": _map(a, core),
+        "risk": _risk(),
     }
 
     # Guard: never let a mock-sized bundle out the door.

@@ -154,6 +154,32 @@ def _linear_predictor(
     return pd.Series(z.to_numpy() @ weights, index=ab.index)
 
 
+def _in_sample_c_index(
+    ab: pd.DataFrame,
+    pat: pd.DataFrame,
+    coeffs: dict[int, dict],
+    mean: pd.Series,
+    std: pd.Series,
+) -> float:
+    """Concordance of the full-cohort model scored on the same patients it was fit on.
+
+    This is the flattering, biased-high number: the model has already seen every
+    outcome, so it cannot generalize-test itself. It exists ONLY to be shown next to
+    the out-of-fold c-index so the optimism is legible; it is never the model's
+    reported performance.
+    """
+    try:
+        lp = _linear_predictor(ab, coeffs, mean, std).to_numpy()
+        times = pat["OSmonth"].to_numpy(dtype=float)
+        events = pat["event"].to_numpy(dtype=int)
+        ok = np.isfinite(lp)
+        if int(events[ok].sum()) == 0 or np.unique(lp[ok]).size < 2:
+            return 0.5
+        return float(concordance_index(times[ok], -lp[ok], events[ok]))
+    except Exception:
+        return 0.5
+
+
 # --- public: fit ------------------------------------------------------------------
 
 
@@ -188,14 +214,27 @@ def fit_risk_model(
 
     coeffs: dict[int, dict] = {}
     niches: list[int] = []
+    mean: pd.Series | None = None
+    std: pd.Series | None = None
     if n_patients >= 2 and ab.shape[1] >= 1 and n_events >= 1:
         try:
-            coeffs, _, _, niches = _fit_coeffs(ab, pat, covs, penalizer)
+            coeffs, mean, std, niches = _fit_coeffs(ab, pat, covs, penalizer)
         except Exception as exc:
             logger.warning("risk model fit failed (%s); model is not evaluable", exc)
 
     state = _ModelState(covs, penalizer, cv_folds, seed, n_perm)
     evidence = _evaluate(adata, state, honesty=honesty)
+
+    # In-sample vs out-of-fold, and the gap between them. The in-sample number is the
+    # flattering one (the model has seen every outcome). We report all three so the
+    # optimism is impossible to miss: on Basel the model is c ~0.68 in-sample and ~0.50
+    # out of fold, and the second is the one we act on.
+    c_out = float(evidence.c_index_cv)
+    c_in = (
+        _in_sample_c_index(ab, pat, coeffs, mean, std)
+        if coeffs and mean is not None
+        else c_out
+    )
 
     return RiskModelCard(
         features=list(niches),
@@ -205,6 +244,9 @@ def fit_risk_model(
         cv_folds=cv_folds,
         c_index_cv=evidence.c_index_cv,
         c_index_ci_95=evidence.c_index_ci_95,
+        c_index_in_sample=round(c_in, 4),
+        c_index_out_of_fold=round(c_out, 4),
+        optimism_gap=round(c_in - c_out, 4),
         calibration_slope=evidence.calibration_slope,
         evidence=evidence,
         coefficients={c: NicheCoefficient(**coeffs[c]) for c in coeffs},
