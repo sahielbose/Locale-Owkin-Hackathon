@@ -295,6 +295,46 @@ Recorded in full, since a methods writeup that lists only what worked is not muc
 
 Items 4 and 5 are cases where a metric gave a misleading answer and we caught it. Both are written up in [`reports/`](reports/).
 
+## Future Clinical Direction
+
+Locale measures a tissue phenotype that current companion diagnostics cannot
+see. **None of the following is demonstrated in this cohort.** This section
+states where the tool points, not what it has proven.
+
+**Checkpoint inhibitor patient selection.** Immunotherapy works by releasing the
+brakes on T cells, which means the T cells have to already be inside the tumor.
+Infiltrated tumors respond. Excluded tumors, where T cells are present but held
+at the stromal margin, usually do not. Immune deserts almost never do. The
+approved companion diagnostic, PD-L1 immunohistochemistry, is a **composition**
+assay: it counts protein. It cannot distinguish an infiltrated tumor from an
+excluded one, and that is part of why it is a mediocre predictor. Locale
+measures that distinction directly.
+
+**Combination therapy selection.** An excluded tumor is a delivery failure, not
+an immunological one: the T cells are there, they cannot get in. That argues for
+breaking the barrier (stromal or TGF-beta targeting agents) before checkpoint
+blockade. A desert tumor argues for something else entirely. Composition cannot
+separate those two cases. Geography can.
+
+**Trial enrichment.** A drug that only works on immune-excluded tumors will fail
+an unenriched trial on a diluted effect. Spatial phenotyping is a screening
+criterion.
+
+**Prognostic refinement.** Some of the outcome variance unexplained by stage,
+grade, and receptor status is architectural rather than compositional.
+
+### Why we do not claim any of this
+
+Basel is a historical breast cancer cohort. **No patient in it received a
+checkpoint inhibitor.** We cannot test response prediction, so we do not.
+
+Our own pre-registered survival hypothesis failed (selection-aware p = 0.44),
+and Locale reported that failure rather than retuning until something crossed
+0.05. A tool that would overclaim here would overclaim there.
+
+Testing any of the above requires an ICI trial cohort with spatial data and
+response labels. That is the next dataset, not the next paragraph.
+
 ## 15. Reproducibility
 
 The engine is a package of pure functions over a single `AnnData` object and contains no MCP code; the MCP tools are three-line wrappers. It reads any `AnnData` carrying `obsm['spatial']`, a cell-type column, and a patient column, so pointing it at a different dataset takes a loader and no change to the analysis code.
