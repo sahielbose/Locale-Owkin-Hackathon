@@ -148,3 +148,89 @@ def _parse_json(text: str) -> dict:
         if match:
             return json.loads(match.group(0))
         raise ValueError("no JSON object in model response")
+
+
+# --- risk verbalization (honesty-guarded) ------------------------------------------
+# When a risk score is turned into a sentence, the verdict and its reason are ALWAYS
+# included, and an unsupported model is NEVER verbalized as a confident clinical claim.
+# This is enforced deterministically: even if the Anthropic path is used, its output is
+# rejected unless it carries the verdict, and we fall back to the deterministic line.
+
+
+def _risk_dict(score) -> dict:
+    return score.model_dump() if hasattr(score, "model_dump") else dict(score)
+
+
+def _deterministic_risk_summary(score: dict) -> str:
+    ev = score.get("evidence") or {}
+    verdict = ev.get("verdict", "not evaluable")
+    reason = ev.get("verdict_reason", "")
+    who = score.get("patient_id") or score.get("image_id") or "this patient"
+    group = score.get("risk_group", "unknown")
+    pct = score.get("risk_percentile")
+    top = score.get("top_contributing_niches") or []
+    drivers = ", ".join(t.get("name", f"niche {t.get('niche_id')}") for t in top[:2])
+
+    head = f"{who} falls in the {group} risk group"
+    if isinstance(pct, (int, float)):
+        head += f" ({pct:.0f}th cohort percentile)"
+    head += f", driven mainly by {drivers}." if drivers else "."
+
+    if verdict == "supported":
+        tail = f" This prediction is statistically supported: {reason}"
+    elif verdict == "insufficient evidence":
+        tail = (
+            " IMPORTANT: this is exploratory and non-actionable, not a clinical "
+            f"prediction. The model has insufficient evidence: {reason}"
+        )
+    else:  # not evaluable
+        tail = (
+            " IMPORTANT: this is not a clinical prediction. The model is not evaluable "
+            f"here: {reason}"
+        )
+    return head + tail
+
+
+def summarize_risk(score) -> str:
+    """Verbalize a RiskScore in ONE sentence that always states the verdict + reason.
+
+    Honesty guard: ONLY a 'supported' score may be rephrased by the LLM. Anything that
+    is not supported ('insufficient evidence' or 'not evaluable') is returned
+    deterministically, with its guaranteed non-actionable framing, so an unsupported
+    model can NEVER be dressed up as a confident clinical claim. Even the 'supported'
+    rephrase is rejected (falls back to the deterministic line) unless it still names
+    the verdict.
+    """
+    score = _risk_dict(score)
+    deterministic = _deterministic_risk_summary(score)
+    verdict = (score.get("evidence") or {}).get("verdict", "not evaluable")
+
+    # Never let the LLM touch a non-supported verdict.
+    if verdict != "supported":
+        return deterministic
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        return deterministic
+    try:
+        import anthropic
+
+        prompt = (
+            "Rewrite this patient risk summary as ONE clear sentence for a clinician. "
+            "You MUST state the word 'supported' and not overstate the evidence beyond "
+            "what the summary says. Do not use em-dashes.\n\n"
+            f"Summary: {deterministic}"
+        )
+        client = anthropic.Anthropic(api_key=api_key, timeout=_TIMEOUT_S)
+        msg = client.messages.create(
+            model=MODEL,
+            max_tokens=_MAX_TOKENS,
+            thinking={"type": "disabled"},
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = "".join(b.text for b in msg.content if b.type == "text").strip()
+        if text and "supported" in text.lower():
+            return text
+        return deterministic
+    except Exception:
+        return deterministic

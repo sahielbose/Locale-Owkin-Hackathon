@@ -32,7 +32,15 @@ from typing import Callable, TypeVar
 import anndata as ad
 import numpy as np
 
-from ..schema import EnrichmentResult, MapPayload, Niche, Prognostic, SampleRecord
+from ..schema import (
+    EnrichmentResult,
+    MapPayload,
+    Niche,
+    Prognostic,
+    RiskModelCard,
+    RiskScore,
+    SampleRecord,
+)
 from ..viz.payload import build_map_payload
 from . import interpret
 
@@ -105,8 +113,9 @@ def _load() -> ad.AnnData:
 
 
 def reset_cache() -> None:
-    """Clear the cached AnnData (used by tests that switch LOCALE_DATA)."""
+    """Clear the cached AnnData + risk model (used by tests that switch LOCALE_DATA)."""
     _load.cache_clear()
+    _risk_model.cache_clear()
 
 
 def backend_status() -> dict[str, str]:
@@ -612,3 +621,108 @@ def describe_niches() -> list[dict]:
         }
         for k, v in sorted(_findings()["niches"].items())
     ]
+
+
+# --- risk layer (impact): patient-level risk, inseparable from its verdict ----------
+# Thin wrappers over engine.risk. No analysis here. Hard guard: a RiskScore is
+# physically incapable of existing without its RiskEvidence (the schema requires it),
+# and if the model cannot be fit/evaluated these tools return a RiskScore whose
+# evidence.verdict is "not evaluable", never a bare number.
+
+
+@functools.lru_cache(maxsize=1)
+def _risk_model() -> RiskModelCard:
+    """Fit (and cache) the risk model on the loaded cohort.
+
+    Reuses the precomputed honesty bundle (demo/findings.json) for the multiplicity /
+    power fields when it matches the loaded cohort, so no slow permutation runs per
+    request. On the tiny mock the model is simply not evaluable.
+    """
+    from ..engine import risk
+
+    adata = _load()
+    honesty = None
+    try:
+        findings = _findings()
+        if int(findings["cohort"]["n_patients"]) == int(
+            adata.obs["patient_id"].astype(str).nunique()
+        ):
+            honesty = findings
+    except Exception:
+        honesty = None
+    return risk.fit_risk_model(adata, honesty=honesty)
+
+
+def _resolve_patient(adata: ad.AnnData, patient_id, image_id) -> str:
+    if patient_id is not None:
+        # A nonexistent patient must ERROR, never be scored as a fabricated placeholder
+        # (that would let a number the model never computed escape with a verdict).
+        if str(patient_id) not in set(adata.obs["patient_id"].astype(str)):
+            raise ValueError(f"patient_id {patient_id!r} not found")
+        return str(patient_id)
+    if image_id is not None:
+        sub = adata.obs[adata.obs["image_id"].astype(str) == str(image_id)]
+        if sub.shape[0] == 0:
+            raise ValueError(f"image_id {image_id!r} not found")
+        return str(sub["patient_id"].iloc[0])
+    raise ValueError("predict_risk requires patient_id or image_id")
+
+
+def _not_evaluable_score(
+    model: RiskModelCard, patient_id: str | None, image_id: str | None
+) -> RiskScore:
+    """A RiskScore whose number is a placeholder; evidence.verdict says do not act."""
+    return RiskScore(
+        patient_id=patient_id,
+        image_id=image_id,
+        risk_score=0.0,
+        risk_percentile=50.0,
+        risk_group="intermediate",
+        top_contributing_niches=[],
+        evidence=model.evidence,
+    )
+
+
+def predict_risk(
+    patient_id: str | None = None, image_id: str | None = None
+) -> RiskScore:
+    """Patient-level risk from niche composition, inseparable from its trust verdict."""
+    from ..engine import risk
+
+    adata = _load()
+    model = _risk_model()
+    pid = _resolve_patient(
+        adata, patient_id, image_id
+    )  # raises if the patient is unknown
+    _BACKEND["predict_risk"] = "real" if model.coefficients else "fallback"
+    if not model.coefficients:
+        # The MODEL cannot evaluate anyone (e.g. the tiny mock): not-evaluable verdict.
+        return _not_evaluable_score(model, pid, image_id)
+    # The patient is known and the model is fitted; score_patient raises only if the
+    # patient cannot be scored (e.g. no survival), which we surface as an error rather
+    # than fabricating a number with the model's cohort verdict.
+    score = risk.score_patient(adata, model, pid)
+    if image_id is not None:
+        score.image_id = str(image_id)
+    return score
+
+
+def rank_patients_by_risk(
+    cohort: str = COHORT, top_n: int | None = None
+) -> list[RiskScore]:
+    """Cohort patients ranked by risk (highest first). Each carries the same evidence."""
+    from ..engine import risk
+
+    adata = _load()
+    model = _risk_model()
+    _BACKEND["rank_patients_by_risk"] = "real" if model.coefficients else "fallback"
+    scores = risk.score_cohort(adata, model)
+    scores.sort(key=lambda s: s.risk_score, reverse=True)
+    return scores[: int(top_n)] if top_n else scores
+
+
+def get_risk_model_card() -> RiskModelCard:
+    """The fitted risk model's provenance + evidence (c-index, calibration, verdict)."""
+    model = _risk_model()
+    _BACKEND["get_risk_model_card"] = "real" if model.coefficients else "fallback"
+    return model

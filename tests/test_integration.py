@@ -35,12 +35,17 @@ EXPECTED_TOOLS = {
     "get_map_payload",
     "describe_niches",
     "correlate_niche_outcome",
+    "predict_risk",
+    "rank_patients_by_risk",
+    "get_risk_model_card",
 }
 
 
 @pytest.fixture(autouse=True)
 def _use_mock(monkeypatch):
     monkeypatch.setenv("LOCALE_DATA", str(MOCK_PATH))
+    # Force interpret's deterministic fallback so no test makes a real Anthropic call.
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     tools.reset_cache()
     yield
     tools.reset_cache()

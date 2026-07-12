@@ -22,7 +22,14 @@ import sys
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field
 
-from ..schema import EnrichmentResult, MapPayload, Niche, SampleRecord
+from ..schema import (
+    EnrichmentResult,
+    MapPayload,
+    Niche,
+    RiskModelCard,
+    RiskScore,
+    SampleRecord,
+)
 from . import tools
 
 logger = logging.getLogger("locale.mcp.server")
@@ -155,6 +162,57 @@ def correlate_niche_outcome(niche_id: int) -> dict:
     point estimate for a finding.
     """
     return tools.correlate_niche_outcome(niche_id)
+
+
+# --- risk layer (impact) ----------------------------------------------------------
+# Every risk tool returns a RiskEvidence inline. A risk_score whose verdict is
+# "insufficient evidence" or "not evaluable" MUST be reported to the user as
+# EXPLORATORY and NON-ACTIONABLE, and MUST NOT be presented as a clinical prediction.
+
+_RISK_VERDICT_NOTE = (
+    "The returned evidence.verdict governs how you may use risk_score. If it is "
+    "'supported', report it as a statistically supported association. If it is "
+    "'insufficient evidence' or 'not evaluable', you MUST tell the user the score is "
+    "exploratory and non-actionable and MUST NOT present it as a clinical prediction; "
+    "state evidence.verdict_reason. Never report risk_score without its verdict."
+)
+
+_PREDICT_RISK_DESC = (
+    "Patient-level risk from spatial niche composition, WITH its trust verdict. "
+    "Returns a risk_score, cohort percentile, tertile risk_group, the per-niche "
+    "contribution decomposition (which niches drive this patient's risk), and an "
+    "inline RiskEvidence (cross-validated c-index + CI, calibration, power context, "
+    "verdict).\n\n" + _RISK_VERDICT_NOTE
+)
+_RANK_RISK_DESC = (
+    "Rank cohort patients by risk (highest first); each carries the same "
+    "RiskEvidence.\n\n" + _RISK_VERDICT_NOTE
+)
+_MODEL_CARD_DESC = (
+    "The fitted risk model's provenance and honest evaluation: features (niche ids), "
+    "covariates adjusted for, training size, the OUT-OF-FOLD c-index with a bootstrap "
+    "CI, the calibration slope, the per-niche coefficients, and the RiskEvidence "
+    "verdict.\n\n" + _RISK_VERDICT_NOTE
+)
+
+
+@mcp.tool(description=_PREDICT_RISK_DESC)
+def predict_risk(
+    patient_id: str | None = None, image_id: str | None = None
+) -> RiskScore:
+    return tools.predict_risk(patient_id=patient_id, image_id=image_id)
+
+
+@mcp.tool(description=_RANK_RISK_DESC)
+def rank_patients_by_risk(
+    cohort: str = "breast", top_n: int | None = None
+) -> list[RiskScore]:
+    return tools.rank_patients_by_risk(cohort=cohort, top_n=top_n)
+
+
+@mcp.tool(description=_MODEL_CARD_DESC)
+def get_risk_model_card() -> RiskModelCard:
+    return tools.get_risk_model_card()
 
 
 def main() -> None:
