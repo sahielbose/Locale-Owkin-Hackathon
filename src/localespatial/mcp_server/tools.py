@@ -70,6 +70,29 @@ def data_path() -> Path:
     return _MOCK
 
 
+# Dataset-native obs columns -> the canonical schema names the tools/engine expect.
+# The real Basel object (data/basel_niched.h5ad) carries PID/core/OSmonth/event; the
+# committed mock already uses the canonical names, so this is a no-op there. Done in
+# memory on load only; the .h5ad on disk is never modified.
+_OBS_ALIASES = {
+    "image_id": ("core",),
+    "patient_id": ("PID",),
+    "os_month": ("OSmonth",),
+    "os_event": ("event",),
+}
+
+
+def _normalize_obs(adata: ad.AnnData) -> ad.AnnData:
+    for canonical, sources in _OBS_ALIASES.items():
+        if canonical in adata.obs.columns:
+            continue
+        for src in sources:
+            if src in adata.obs.columns:
+                adata.obs[canonical] = adata.obs[src].to_numpy()
+                break
+    return adata
+
+
 @functools.lru_cache(maxsize=1)
 def _load() -> ad.AnnData:
     path = data_path()
@@ -78,7 +101,7 @@ def _load() -> ad.AnnData:
             f"{path} not found. Run `python scripts/make_mock.py` or set LOCALE_DATA."
         )
     logger.info("loaded AnnData from %s", path)
-    return ad.read_h5ad(path)
+    return _normalize_obs(ad.read_h5ad(path))
 
 
 def reset_cache() -> None:
@@ -171,6 +194,12 @@ def _emergency_niches(adata: ad.AnnData) -> np.ndarray:
 
 def _labeled_adata(adata: ad.AnnData, n_niches: int | None) -> tuple[ad.AnnData, str]:
     """Return (adata_with_obs['niche'], backend). Try the engine, else precomputed, else crude."""
+    # When the object already carries the real engine's niche labeling (the Basel run
+    # writes obs['niche'] = the 12 discovered niches) and the caller did not ask for a
+    # specific k, serve those. Re-clustering 755k cells on every call is slow and would
+    # diverge from the precomputed niche world correlate_niche_outcome/describe_niches use.
+    if n_niches is None and "niche" in adata.obs:
+        return adata, "real"
     try:
         from ..engine.niches import find_niches as engine_find_niches
 
