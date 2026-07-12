@@ -28,8 +28,6 @@ import matplotlib.pyplot as plt
 from lifelines import KaplanMeierFitter
 from lifelines.statistics import logrank_test
 
-from src.localespatial.metaclusters import METACLUSTERS
-
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "data"
 FIGS = ROOT / "docs" / "figures"
@@ -72,18 +70,16 @@ def _save(fig, name: str) -> None:
     print(f"  wrote {out.relative_to(ROOT)}")
 
 
-def fig_enrichment_heatmap(a: ad.AnnData) -> None:
-    """Figure 1: neighborhood-enrichment z over the 27 metaclusters, ordered by major
-    class. Block-diagonal (like-next-to-like) plus the tumor/immune off-diagonal."""
-    z = np.asarray(a.uns["metacluster_id_nhood_enrichment"]["zscore"], dtype=float)
-    cats = [int(c) for c in a.obs["metacluster_id"].cat.categories]
-    order = sorted(
-        range(len(cats)),
-        key=lambda i: (MAJOR_ORDER.index(METACLUSTERS[cats[i]][1]), cats[i]),
-    )
-    zo = z[np.ix_(order, order)]
-    labels = [METACLUSTERS[cats[i]][0] for i in order]
-    majors = [METACLUSTERS[cats[i]][1] for i in order]
+def fig_enrichment_heatmap(findings: dict) -> None:
+    """Neighborhood-enrichment z over the 25 unique cell-type names, ordered by major
+    class. Block-diagonal (like-next-to-like) plus the tumor/immune off-diagonal.
+
+    Reads the frozen enrichment from demo/findings.json (25 names, so the tumor/immune
+    block averages to -32, matching the report), not the object's 27-id matrix."""
+    enr = findings["enrichment"]
+    zo = np.array(enr["zscores"], dtype=float)
+    labels = enr["names"]
+    majors = enr["major"]
 
     fig, ax = plt.subplots(figsize=(11, 9.5))
     lim = float(np.nanpercentile(np.abs(zo), 98))
@@ -98,46 +94,44 @@ def fig_enrichment_heatmap(a: ad.AnnData) -> None:
         ax.axhline(b - 0.5, color="black", lw=1.0)
         ax.axvline(b - 0.5, color="black", lw=1.0)
     ax.set_title(
-        "Neighborhood enrichment (permutation z) over 27 metaclusters\n"
+        "Neighborhood enrichment (permutation z) over 25 cell types\n"
         "block-diagonal is real tissue; tumor/immune off-diagonal is immune exclusion"
     )
     fig.colorbar(im, ax=ax, shrink=0.7, label="enrichment z")
     _save(fig, "enrichment_heatmap.png")
 
 
-def fig_major_blocks(a: ad.AnnData) -> None:
-    """The four-by-four major-class mean-z matrix. The headline: tumor vs immune z = -32."""
-    z = np.asarray(a.uns["metacluster_id_nhood_enrichment"]["zscore"], dtype=float)
-    cats = [int(c) for c in a.obs["metacluster_id"].cat.categories]
-    majors = np.array([METACLUSTERS[c][1] for c in cats])
-    M = np.zeros((4, 4))
-    for i, r in enumerate(MAJOR_ORDER):
-        for j, c in enumerate(MAJOR_ORDER):
-            M[i, j] = float(np.nanmean(z[np.ix_(majors == r, majors == c)]))
+def fig_major_blocks(findings: dict) -> None:
+    """The four-by-four major-class mean-z matrix. The headline: tumor vs immune z = -32.
+
+    Reads findings['enrichment']['major_blocks'] (25-name granularity)."""
+    mb = findings["enrichment"]["major_blocks"]
+    order = mb["cell_types"]
+    M = np.array(mb["zscores"], dtype=float)
 
     fig, ax = plt.subplots(figsize=(6.4, 5.6))
     lim = float(np.abs(M).max())
     im = ax.imshow(M, cmap="RdBu_r", vmin=-lim, vmax=lim)
-    ax.set_xticks(range(4))
-    ax.set_yticks(range(4))
-    ax.set_xticklabels(MAJOR_ORDER, rotation=30, ha="right")
-    ax.set_yticklabels(MAJOR_ORDER)
-    for i in range(4):
-        for j in range(4):
+    ax.set_xticks(range(len(order)))
+    ax.set_yticks(range(len(order)))
+    ax.set_xticklabels(order, rotation=30, ha="right")
+    ax.set_yticklabels(order)
+    for i in range(len(order)):
+        for j in range(len(order)):
             ax.text(
                 j,
                 i,
-                f"{M[i, j]:+.1f}",
+                f"{M[i, j]:+.0f}",
                 ha="center",
                 va="center",
                 fontsize=12,
                 color="white" if abs(M[i, j]) > lim * 0.5 else "black",
                 fontweight="bold",
             )
-    ti = M[MAJOR_ORDER.index("tumor"), MAJOR_ORDER.index("immune")]
+    ti = M[order.index("tumor"), order.index("immune")]
     ax.set_title(
         "Major-class neighborhood enrichment (mean z)\n"
-        f"tumor vs immune block mean = {ti:+.1f} (immune exclusion)"
+        f"tumor vs immune block mean = {ti:+.0f} (immune exclusion)"
     )
     fig.colorbar(im, ax=ax, shrink=0.8, label="mean enrichment z")
     _save(fig, "enrichment_major_blocks.png")
@@ -148,9 +142,7 @@ def fig_niche_composition(a: ad.AnnData) -> None:
     maj = a.obs["major"].astype(str).to_numpy()
     niche = a.obs["niche"].to_numpy().astype(int)
     ids = sorted(set(niche))
-    comp = {
-        m: [float((maj[niche == n] == m).mean()) for n in ids] for m in MAJOR_ORDER
-    }
+    comp = {m: [float((maj[niche == n] == m).mean()) for n in ids] for m in MAJOR_ORDER}
     fig, ax = plt.subplots(figsize=(11, 5))
     bottom = np.zeros(len(ids))
     for m in MAJOR_ORDER:
@@ -217,9 +209,7 @@ def fig_km_niche7(a: ad.AnnData) -> None:
     pat = pat.loc[ab.index]
     a7 = ab[7]
     hi = a7 > a7.median()
-    lr = logrank_test(
-        pat.OSmonth[hi], pat.OSmonth[~hi], pat.event[hi], pat.event[~hi]
-    )
+    lr = logrank_test(pat.OSmonth[hi], pat.OSmonth[~hi], pat.event[hi], pat.event[~hi])
     fig, ax = plt.subplots(figsize=(7, 5))
     KaplanMeierFitter().fit(
         pat.OSmonth[hi], pat.event[hi], label=f"high niche-7 (n={int(hi.sum())})"
@@ -272,8 +262,9 @@ def main() -> None:
     FIGS.mkdir(parents=True, exist_ok=True)
     print("loading data/basel_niched.h5ad ...")
     a = ad.read_h5ad(DATA / "basel_niched.h5ad")
-    fig_enrichment_heatmap(a)
-    fig_major_blocks(a)
+    findings = json.loads((ROOT / "demo" / "findings.json").read_text())
+    fig_enrichment_heatmap(findings)
+    fig_major_blocks(findings)
     fig_niche_composition(a)
     fig_survival_forest()
     fig_km_niche7(a)

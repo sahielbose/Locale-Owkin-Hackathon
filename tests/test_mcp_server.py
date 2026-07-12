@@ -30,8 +30,11 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture(autouse=True)
 def _use_mock(monkeypatch):
-    """Force the tools to serve the committed mock, hermetically."""
+    """Force the tools to serve the committed mock, hermetically (no real API calls)."""
     monkeypatch.setenv("LOCALE_DATA", str(MOCK_PATH))
+    # niche naming runs during tool calls; force interpret's deterministic fallback so
+    # no test makes a real Anthropic call regardless of the developer's environment.
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     tools.reset_cache()
     yield
     tools.reset_cache()
@@ -238,7 +241,7 @@ def test_resolve_cohort_skips_elicit_when_known():
     assert cohort == "breast" and n == 5 and called["n"] == 0
 
 
-def test_server_registers_all_seven_tools():
+def test_server_registers_all_tools():
     names = {t.name for t in asyncio.run(server.mcp.list_tools())}
     assert names == {
         "list_samples",
@@ -250,4 +253,7 @@ def test_server_registers_all_seven_tools():
         "get_map_payload",
         "describe_niches",
         "correlate_niche_outcome",
+        "predict_risk",
+        "rank_patients_by_risk",
+        "get_risk_model_card",
     }

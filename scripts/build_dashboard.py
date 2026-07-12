@@ -21,13 +21,10 @@ from pathlib import Path
 import anndata as ad
 import numpy as np
 
-from src.localespatial.metaclusters import METACLUSTERS
-
 ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = ROOT / "src" / "localespatial" / "viz" / "app"
 FINDINGS = ROOT / "demo" / "findings.json"
 
-MAJOR_ORDER = ["immune", "endothelial", "stroma", "tumor"]
 MAP_CORE = "BaselTMA_SP43_144_X15Y1"  # 32% tumor, compartmentalised: shows the niches
 MAP_MAX_PER_CORE = 10_000  # never ship a whole core's worth of points to a canvas
 
@@ -50,22 +47,15 @@ def _data_path() -> Path:
     return path
 
 
-def _major_enrichment(a: ad.AnnData) -> dict:
-    """Four-by-four major-class mean z from the cached metacluster enrichment.
+def _major_enrichment(findings: dict) -> dict:
+    """The frozen 4-class neighborhood enrichment, read from demo/findings.json.
 
-    Reads the enrichment already stored in obs/uns; it does not recompute it.
+    findings['enrichment'] is computed over the 25 unique cell-type names, so the
+    tumor vs immune headline reads -32, matching the report, the figures, and the
+    PDF. Aggregating the object's cached 27-id matrix here would give -22 and disagree
+    with the report, so this is read, not recomputed.
     """
-    z = np.asarray(a.uns["metacluster_id_nhood_enrichment"]["zscore"], dtype=float)
-    cats = [int(c) for c in a.obs["metacluster_id"].cat.categories]
-    maj = np.array([METACLUSTERS[c][1] for c in cats])
-    zscores = [
-        [
-            round(float(np.nanmean(z[np.ix_(maj == r, maj == c)])), 1)
-            for c in MAJOR_ORDER
-        ]
-        for r in MAJOR_ORDER
-    ]
-    return {"cell_types": MAJOR_ORDER, "zscores": zscores}
+    return findings["enrichment"]["major_blocks"]
 
 
 def _cards(findings: dict) -> list[dict]:
@@ -167,7 +157,7 @@ def main() -> None:
             "n_events": int(cohort["n_events"]),
             "min_detectable_hr": round(float(cohort["min_detectable_hr"]), 3),
         },
-        "enrichment": _major_enrichment(a),
+        "enrichment": _major_enrichment(findings),
         "niches": cards,
         "map": _map(a, core),
     }
