@@ -1,4 +1,4 @@
-# Lane C 3D assets — sourcing manifest
+# Lane C 3D assets - sourcing manifest
 
 The 3D hero viewer (`../hero3d.html`) renders a **real, externally-sourced** model.
 Nothing here is procedurally generated. Every model below was verified against the
@@ -14,7 +14,7 @@ unzips the Sketchfab glTF archive into `assets/model/` (`scene.gltf` + `scene.bi
 
 ## Recommended hero (default)
 
-**Prostate Cancer Cells — @GLS**
+**Prostate Cancer Cells - @GLS**
 - Why: professional medical-viz studio, ~1.26M faces, the most photoreal cancer-cell
   surface in the set. Cancer cells are the centerpiece of Locale's tumor niches.
 - License: CC Attribution 4.0 (CC-BY). Downloadable: yes.
@@ -38,9 +38,9 @@ Ranked by fit to the breast-TME cell types in `CLAUDE.md`
 | Lymphocyte | @3dcellstudio | 32,416 | CD8/CD4 T cell, web-light | `5736f63ebbd54889b427af1c1dc3778e` |
 | Components of blood | @arloopa | 78,352 | mixed immune/blood cells | `3ae309d331a049918b5788718ee58f35` |
 
-## Embed-only (do NOT download — All Rights Reserved)
+## Embed-only (do NOT download - All Rights Reserved)
 
-**Cancer cell under immune attack (membrane blebs) — @bblakesley** is the single most
+**Cancer cell under immune attack (membrane blebs) - @bblakesley** is the single most
 on-message image for Locale (a tumor cell being attacked by immune cells, exactly the
 immune-excluded vs immune-infiltrated niche story). But it is **not downloadable and
 carries no reuse license**. Use it only as a Sketchfab `<iframe>` embed, never as a
@@ -50,11 +50,11 @@ committed asset.
 
 ## Other genuinely-good sources considered
 
-- **NIH 3D (3d.nih.gov) / NIH BioArt** — public domain, but the 3D catalog is mostly
+- **NIH 3D (3d.nih.gov) / NIH BioArt** - public domain, but the 3D catalog is mostly
   untextured print meshes, not photoreal cells. Good for anatomy, weak for TME cells.
-- **Poly Pizza** — CC-BY GLBs with direct download, but the API needs a free key and
+- **Poly Pizza** - CC-BY GLBs with direct download, but the API needs a free key and
   its biology catalog is thin.
-- **TurboSquid / CGTrader / Free3D** — the highest-fidelity cancer-cell models, but
+- **TurboSquid / CGTrader / Free3D** - the highest-fidelity cancer-cell models, but
   paid and/or login-gated; licenses are per-item and often not redistributable.
 
 ## How to get the file into this folder

@@ -3,9 +3,9 @@
 # Lane A (data + engine) needs the scverse stack; Lanes B and C can work with a
 # much lighter install (pydantic + mcp + anndata) against data/mock.h5ad.
 #
-# The heavy spatial libraries (squidpy, cellcharter, scanpy) are only required
-# once you build/analyze the real data/locale.h5ad. If you are only building the
-# MCP server or the viz against the mock, you can skip them.
+# The heavy spatial libraries (squidpy, scanpy) are only required once you
+# build/analyze the real cohort. If you are only building the MCP server or the
+# viz against the mock, you can skip them.
 
 # --- core data contract + IO (everyone needs these) ---
 pydantic>=2.6
@@ -15,8 +15,9 @@ pandas>=2.1
 
 # --- Lane A: spatial analysis engine ---
 squidpy>=1.4          # spatial graph + neighborhood enrichment
-cellcharter>=0.3      # cross-sample niche detection (VAE + GMM)
 scanpy>=1.10          # rank_genes_groups for marker programs
+scikit-learn>=1.4     # k-means niche clustering + adjusted Rand index
+scikit-image>=0.22    # regionprops centroids for coordinate recovery from masks
 lifelines>=0.28       # Cox / Kaplan-Meier survival association
 
 # --- Lane A: data fetch ---
@@ -26,8 +27,9 @@ remotezip>=0.12       # range-request extraction of needed files from the Zenodo
 mcp>=1.2              # Python MCP SDK (remote / HTTP server)
 anthropic>=0.40       # server-side sampling for niche auto-naming (interpret.py)
 
-# --- Lane C: visualization ---
+# --- Lane C: visualization + figures ---
 plotly>=5.20          # scattergl tissue map (deck.gl loaded via CDN in the HTML)
+matplotlib>=3.8       # static figures for the report / README (scripts/make_figures.py)
 
 # --- tooling ---
 pytest>=8.0

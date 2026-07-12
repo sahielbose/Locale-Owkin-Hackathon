@@ -23,6 +23,7 @@ TEMPORARY adjacency z-score used by compute_enrichment until engine.enrichment l
 from __future__ import annotations
 
 import functools
+import json
 import logging
 import os
 from pathlib import Path
@@ -42,6 +43,9 @@ _TOP_MARKERS = 6
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _MOCK = _REPO_ROOT / "data" / "mock.h5ad"
 _REAL = _REPO_ROOT / "data" / "locale.h5ad"
+_FINDINGS = (
+    _REPO_ROOT / "demo" / "findings.json"
+)  # precomputed demo path (scripts/precompute_findings.py)
 
 # Records which backend served each tool most recently ("real" | "fallback").
 _BACKEND: dict[str, str] = {}
@@ -66,6 +70,29 @@ def data_path() -> Path:
     return _MOCK
 
 
+# Dataset-native obs columns -> the canonical schema names the tools/engine expect.
+# The real Basel object (data/basel_niched.h5ad) carries PID/core/OSmonth/event; the
+# committed mock already uses the canonical names, so this is a no-op there. Done in
+# memory on load only; the .h5ad on disk is never modified.
+_OBS_ALIASES = {
+    "image_id": ("core",),
+    "patient_id": ("PID",),
+    "os_month": ("OSmonth",),
+    "os_event": ("event",),
+}
+
+
+def _normalize_obs(adata: ad.AnnData) -> ad.AnnData:
+    for canonical, sources in _OBS_ALIASES.items():
+        if canonical in adata.obs.columns:
+            continue
+        for src in sources:
+            if src in adata.obs.columns:
+                adata.obs[canonical] = adata.obs[src].to_numpy()
+                break
+    return adata
+
+
 @functools.lru_cache(maxsize=1)
 def _load() -> ad.AnnData:
     path = data_path()
@@ -74,7 +101,7 @@ def _load() -> ad.AnnData:
             f"{path} not found. Run `python scripts/make_mock.py` or set LOCALE_DATA."
         )
     logger.info("loaded AnnData from %s", path)
-    return ad.read_h5ad(path)
+    return _normalize_obs(ad.read_h5ad(path))
 
 
 def reset_cache() -> None:
@@ -167,6 +194,12 @@ def _emergency_niches(adata: ad.AnnData) -> np.ndarray:
 
 def _labeled_adata(adata: ad.AnnData, n_niches: int | None) -> tuple[ad.AnnData, str]:
     """Return (adata_with_obs['niche'], backend). Try the engine, else precomputed, else crude."""
+    # When the object already carries the real engine's niche labeling (the Basel run
+    # writes obs['niche'] = the 12 discovered niches) and the caller did not ask for a
+    # specific k, serve those. Re-clustering 755k cells on every call is slow and would
+    # diverge from the precomputed niche world correlate_niche_outcome/describe_niches use.
+    if n_niches is None and "niche" in adata.obs:
+        return adata, "real"
     try:
         from ..engine.niches import find_niches as engine_find_niches
 
@@ -548,3 +581,34 @@ def get_map_payload(image_id: str, color_mode: str = "cell_type") -> MapPayload:
     adata = _load()
     _BACKEND["get_map_payload"] = "real"
     return build_map_payload(adata, image_id, color_mode)
+
+
+# --- precomputed findings (the demo path; served instantly from cache) -------------
+
+
+@functools.lru_cache(maxsize=1)
+def _findings() -> dict:
+    data = json.loads(_FINDINGS.read_text())
+    data["niches"] = {int(k): v for k, v in data["niches"].items()}
+    return data
+
+
+def correlate_niche_outcome(niche_id: int) -> dict:
+    """One niche's abundance vs overall survival, with the full honesty bundle."""
+    from ..engine.outcome import correlate_niche_outcome as _engine
+
+    return _engine(_findings(), int(niche_id))
+
+
+def describe_niches() -> list[dict]:
+    """The niche catalog (name, major composition, size) from the precomputed cache."""
+    return [
+        {
+            "niche_id": k,
+            "name": v["name"],
+            "composition": v["composition_major"],
+            "n_cells": v["n_cells"],
+            "n_cores": v["n_cores"],
+        }
+        for k, v in sorted(_findings()["niches"].items())
+    ]

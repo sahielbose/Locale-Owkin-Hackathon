@@ -5,9 +5,9 @@ Streamable HTTP transport so it can be added to Claude / K Pro as a REMOTE custo
 connector (an https .../mcp URL), mirroring Owkin's Pathology Explorer. Every tool
 wraps src/locale/mcp_server/tools.py and returns schema objects.
 
-    python -m src.locale.mcp_server.server                  # streamable-http (default)
-    LOCALE_HOST=0.0.0.0 LOCALE_PORT=8000 python -m src.locale.mcp_server.server
-    LOCALE_TRANSPORT=sse python -m src.locale.mcp_server.server     # only if a client needs SSE
+    python -m localespatial.mcp_server.server                    # streamable-http (default, for K Pro)
+    LOCALE_TRANSPORT=stdio python -m localespatial.mcp_server.server   # for Claude Desktop (stdio)
+    LOCALE_HOST=0.0.0.0 LOCALE_PORT=8000 python -m localespatial.mcp_server.server
 
 Data source: data/locale.h5ad if present, else data/mock.h5ad (override with LOCALE_DATA).
 No authentication for now (add a bearer token / OAuth before exposing publicly).
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 
 from mcp.server.fastmcp import Context, FastMCP
 from pydantic import BaseModel, Field
@@ -138,20 +139,50 @@ def get_map_payload(image_id: str, color_mode: str = "cell_type") -> MapPayload:
     return tools.get_map_payload(image_id=image_id, color_mode=color_mode)
 
 
+@mcp.tool()
+def describe_niches() -> list[dict]:
+    """List the discovered cellular niches (name, major-class composition, size)."""
+    return tools.describe_niches()
+
+
+@mcp.tool()
+def correlate_niche_outcome(niche_id: int) -> dict:
+    """Niche abundance vs overall survival, shipped WITH its statistical context.
+
+    Returns hazard_ratio, ci_95, p_raw, n_hypotheses_tested, q_fdr, p_selection_aware,
+    n_events, min_detectable_hr (80% power), and a verdict ('supported' |
+    'insufficient evidence'). The context ships unasked so the caller cannot mistake a
+    point estimate for a finding.
+    """
+    return tools.correlate_niche_outcome(niche_id)
+
+
 def main() -> None:
-    logging.basicConfig(
-        level=os.environ.get("LOCALE_LOG_LEVEL", "INFO"),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
     transport = os.environ.get("LOCALE_TRANSPORT", "streamable-http")
     host = os.environ.get("LOCALE_HOST", "127.0.0.1")
     port = os.environ.get("LOCALE_PORT", "8000")
-    logger.info(
-        "starting Locale MCP server (transport=%s) on http://%s:%s/mcp",
-        transport,
-        host,
-        port,
+
+    # The stdio transport (used by desktop clients like Claude Desktop) speaks
+    # JSON-RPC over stdout, so a single stray byte of logging on stdout corrupts
+    # the stream and the client silently drops the connection. Pin ALL logging to
+    # stderr. (streamable-http has its own socket, but we keep logs on stderr for
+    # consistency.) `force=True` overrides any stdout handler a dependency installed
+    # at import time.
+    logging.basicConfig(
+        level=os.environ.get("LOCALE_LOG_LEVEL", "INFO"),
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        stream=sys.stderr,
+        force=True,
     )
+    if transport == "stdio":
+        logger.info("starting Locale MCP server (transport=stdio, JSON-RPC on stdout)")
+    else:
+        logger.info(
+            "starting Locale MCP server (transport=%s) on http://%s:%s/mcp",
+            transport,
+            host,
+            port,
+        )
     mcp.run(transport=transport)
 
 

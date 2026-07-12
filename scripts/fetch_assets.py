@@ -1,9 +1,9 @@
 """Fetch the Lane C 3D hero model from Sketchfab (Lane C).
 
 We do NOT generate meshes. This pulls a real, externally-authored, CC-BY 4.0 cell
-model into src/locale/viz/app/assets/ and records the required attribution. Every
+model into src/localespatial/viz/app/assets/ and records the required attribution. Every
 model id below was verified against the Sketchfab v3 API (license.slug == "by",
-isDownloadable == true). See src/locale/viz/app/assets/ASSETS.md for the full
+isDownloadable == true). See src/localespatial/viz/app/assets/ASSETS.md for the full
 sourcing manifest.
 
 Sketchfab gates downloads behind a free API token (no cost, 2 clicks):
@@ -186,7 +186,7 @@ def main() -> int:
     attr_path = out_dir.parent / "attribution.json"
     attr_path.write_text(json.dumps(attribution, indent=2))
     print(f"wrote {attr_path}")
-    print("Open src/locale/viz/app/hero3d.html to view.")
+    print("Open src/localespatial/viz/app/hero3d.html to view.")
     return 0
 
 

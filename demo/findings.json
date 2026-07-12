@@ -1,0 +1,291 @@
+{
+  "cohort": {
+    "n_patients": 281,
+    "n_events": 79,
+    "n_hypotheses_tested": 12,
+    "observed_best_p": 0.09293055173207092,
+    "p_selection_aware": 0.43956043956043955,
+    "min_detectable_hr": 1.3705374514395343,
+    "power": 0.8,
+    "alpha": 0.05
+  },
+  "niches": {
+    "0": {
+      "name": "stromal / vascular",
+      "composition_major": {
+        "tumor": 0.295,
+        "immune": 0.107,
+        "stroma": 0.57,
+        "endothelial": 0.028
+      },
+      "top_metaclusters": [
+        "small elongated (40%)",
+        "small circular (10%)",
+        "HR low CK (6%)"
+      ],
+      "n_cells": 145781,
+      "n_cores": 286,
+      "hazard_ratio": 0.954205540581879,
+      "ci_95": [
+        0.7627762678803582,
+        1.1936766415233693
+      ],
+      "p_raw": 0.6815741966493191,
+      "q_fdr": 0.8178890359791829
+    },
+    "1": {
+      "name": "immune-rich",
+      "composition_major": {
+        "tumor": 0.181,
+        "immune": 0.594,
+        "stroma": 0.185,
+        "endothelial": 0.04
+      },
+      "top_metaclusters": [
+        "T cells (47%)",
+        "small elongated (9%)",
+        "Macrophages (6%)"
+      ],
+      "n_cells": 91905,
+      "n_cores": 260,
+      "hazard_ratio": 0.7642470306850566,
+      "ci_95": [
+        0.5869803953987228,
+        0.995047753705944
+      ],
+      "p_raw": 0.04584307321144258,
+      "q_fdr": 0.2902559947542285
+    },
+    "2": {
+      "name": "CK low HR low-mixed",
+      "composition_major": {
+        "tumor": 0.746,
+        "immune": 0.092,
+        "stroma": 0.135,
+        "endothelial": 0.026
+      },
+      "top_metaclusters": [
+        "CK low HR low (62%)",
+        "small elongated (7%)",
+        "T cells (6%)"
+      ],
+      "n_cells": 57211,
+      "n_cores": 164,
+      "hazard_ratio": 1.0931006376400738,
+      "ci_95": [
+        0.8965285449234566,
+        1.3327729616363202
+      ],
+      "p_raw": 0.37880901060824224,
+      "q_fdr": 0.7220453659576425
+    },
+    "3": {
+      "name": "CK7 CK-mixed",
+      "composition_major": {
+        "tumor": 0.719,
+        "immune": 0.055,
+        "stroma": 0.209,
+        "endothelial": 0.017
+      },
+      "top_metaclusters": [
+        "CK7 CK (57%)",
+        "small elongated (13%)",
+        "small circular (5%)"
+      ],
+      "n_cells": 45729,
+      "n_cores": 116,
+      "hazard_ratio": 0.6208359006197146,
+      "ci_95": [
+        0.3706971556171812,
+        1.039763077913479
+      ],
+      "p_raw": 0.07002286951757637,
+      "q_fdr": 0.2902559947542285
+    },
+    "4": {
+      "name": "HR hi CK-mixed",
+      "composition_major": {
+        "tumor": 0.722,
+        "immune": 0.072,
+        "stroma": 0.191,
+        "endothelial": 0.015
+      },
+      "top_metaclusters": [
+        "HR hi CK (59%)",
+        "small elongated (9%)",
+        "Vimentin hi (6%)"
+      ],
+      "n_cells": 53143,
+      "n_cores": 112,
+      "hazard_ratio": 1.1465935104309373,
+      "ci_95": [
+        0.9215145731471015,
+        1.4266477345795354
+      ],
+      "p_raw": 0.2198652946520431,
+      "q_fdr": 0.6595958839561293
+    },
+    "5": {
+      "name": "stromal / vascular",
+      "composition_major": {
+        "tumor": 0.254,
+        "immune": 0.159,
+        "stroma": 0.552,
+        "endothelial": 0.035
+      },
+      "top_metaclusters": [
+        "Vimentin hi (36%)",
+        "small elongated (10%)",
+        "T cells (8%)"
+      ],
+      "n_cells": 77344,
+      "n_cores": 276,
+      "hazard_ratio": 1.097057268906506,
+      "ci_95": [
+        0.8660044594297492,
+        1.3897557202570419
+      ],
+      "p_raw": 0.44267615541130645,
+      "q_fdr": 0.7220453659576425
+    },
+    "6": {
+      "name": "tumor-immune boundary",
+      "composition_major": {
+        "tumor": 0.656,
+        "immune": 0.165,
+        "stroma": 0.147,
+        "endothelial": 0.031
+      },
+      "top_metaclusters": [
+        "Basal CK (13%)",
+        "hypoxic (12%)",
+        "apoptotic (12%)"
+      ],
+      "n_cells": 106651,
+      "n_cores": 275,
+      "hazard_ratio": 0.9197773897222125,
+      "ci_95": [
+        0.7032146491883952,
+        1.2030330250096384
+      ],
+      "p_raw": 0.5415340244682318,
+      "q_fdr": 0.7220453659576425
+    },
+    "7": {
+      "name": "tumor-rich, immune-poor",
+      "composition_major": {
+        "tumor": 0.786,
+        "immune": 0.044,
+        "stroma": 0.151,
+        "endothelial": 0.019
+      },
+      "top_metaclusters": [
+        "HR low CK (67%)",
+        "small elongated (10%)",
+        "small circular (3%)"
+      ],
+      "n_cells": 74739,
+      "n_cores": 160,
+      "hazard_ratio": 1.0751045052733503,
+      "ci_95": [
+        0.8598645287521156,
+        1.3442230242204436
+      ],
+      "p_raw": 0.5251992639236984,
+      "q_fdr": 0.7220453659576425,
+      "phenotype_note": "cell-level 'tumor-rich, immune-poor'. Excluded-vs-desert is a continuum on Basel (deserts are real but there is no clean boundary), so this is NOT an 'immune-excluded' claim. Testing that would need pre-registration on Zurich."
+    },
+    "8": {
+      "name": "proliferative-mixed",
+      "composition_major": {
+        "tumor": 0.834,
+        "immune": 0.06,
+        "stroma": 0.087,
+        "endothelial": 0.019
+      },
+      "top_metaclusters": [
+        "proliferative (73%)",
+        "small elongated (4%)",
+        "T cells (4%)"
+      ],
+      "n_cells": 22272,
+      "n_cores": 90,
+      "hazard_ratio": 1.088016931100314,
+      "ci_95": [
+        0.9258799956996775,
+        1.2785467316057253
+      ],
+      "p_raw": 0.3055545403622689,
+      "q_fdr": 0.7220453659576425
+    },
+    "9": {
+      "name": "CK HR-mixed",
+      "composition_major": {
+        "tumor": 0.694,
+        "immune": 0.063,
+        "stroma": 0.232,
+        "endothelial": 0.011
+      },
+      "top_metaclusters": [
+        "CK HR (60%)",
+        "Vimentin hi (10%)",
+        "small elongated (9%)"
+      ],
+      "n_cells": 31076,
+      "n_cores": 147,
+      "hazard_ratio": 0.9966721367868056,
+      "ci_95": [
+        0.7929959293947436,
+        1.252661345948343
+      ],
+      "p_raw": 0.9772000056508929,
+      "q_fdr": 0.9772000056508929
+    },
+    "10": {
+      "name": "tumor-immune boundary",
+      "composition_major": {
+        "tumor": 0.8,
+        "immune": 0.121,
+        "stroma": 0.062,
+        "endothelial": 0.018
+      },
+      "top_metaclusters": [
+        "p53 EGFR (70%)",
+        "T cells (9%)",
+        "hypoxic (4%)"
+      ],
+      "n_cells": 18979,
+      "n_cores": 24,
+      "hazard_ratio": 0.9778155507220945,
+      "ci_95": [
+        0.7183456320385181,
+        1.3310072597235267
+      ],
+      "p_raw": 0.886614600447285,
+      "q_fdr": 0.9672159277606746
+    },
+    "11": {
+      "name": "Epithelial low-mixed",
+      "composition_major": {
+        "tumor": 0.716,
+        "immune": 0.05,
+        "stroma": 0.214,
+        "endothelial": 0.02
+      },
+      "top_metaclusters": [
+        "Epithelial low (56%)",
+        "small elongated (14%)",
+        "small circular (6%)"
+      ],
+      "n_cells": 30240,
+      "n_cores": 216,
+      "hazard_ratio": 1.1604351895539455,
+      "ci_95": [
+        0.9864687914094964,
+        1.3650810252507077
+      ],
+      "p_raw": 0.07256399868855712,
+      "q_fdr": 0.2902559947542285
+    }
+  }
+}

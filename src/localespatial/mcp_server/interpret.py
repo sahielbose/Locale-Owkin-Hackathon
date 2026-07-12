@@ -47,7 +47,11 @@ def _fallback_name(composition: dict[str, float], marker_program: list[str]) -> 
     stromal = sum(frac.get(c, 0.0) for c in _STROMAL)
 
     if tumor >= 0.5 and immune < 0.15:
-        base = "immune-excluded tumor core"
+        # A cell-level composition cannot distinguish "immune-excluded" (immune present
+        # but locked out of the tumor bed) from "immune desert" (no immune at all); on
+        # Basel this phenotype is a continuum. So the honest, checkable label describes
+        # what we measured, not a mechanism we cannot see. K Pro reasons from this string.
+        base = "tumor-rich, immune-poor"
     elif immune >= 0.5:
         base = "immune-infiltrated niche"
     elif stromal >= 0.5:

@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from src.locale.mcp_server import interpret, server, tools
-from src.locale.schema import (
+from src.localespatial.mcp_server import interpret, server, tools
+from src.localespatial.schema import (
     EnrichmentResult,
     MapPayload,
     Niche,
@@ -248,4 +248,6 @@ def test_server_registers_all_seven_tools():
         "characterize_niche",
         "find_prognostic_niches",
         "get_map_payload",
+        "describe_niches",
+        "correlate_niche_outcome",
     }

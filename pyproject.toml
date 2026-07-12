@@ -1,5 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+# Import path is `localespatial` so it never shadows the Python stdlib `locale`
+# module (gettext inside click/uvicorn/mcp does `import locale`). The PRODUCT is
+# still called Locale; only the package/import name changed.
+name = "localespatial"
+version = "0.1.0"
+description = "Locale: a spatial-reasoning MCP engine for tumor tissue (import path: localespatial)"
+requires-python = ">=3.11"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
 [tool.pytest.ini_options]
-# Run pytest from the repo root; make `import src.locale...` resolve.
+# Run pytest from the repo root; make `import src.localespatial...` resolve.
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-q"
