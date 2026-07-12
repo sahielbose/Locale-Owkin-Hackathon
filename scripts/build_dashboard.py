@@ -1,92 +1,187 @@
-"""Build a single JSON bundle that drives the integrated Locale dashboard.
+"""Build the dashboard data bundle from the FROZEN real-cohort outputs.
 
-Runs the REAL engine end to end on the loaded AnnData (mock.h5ad by default) and
-dumps everything one screen needs: cohort summary, the enrichment matrix, the
-niches ranked by prognostic strength (composition + markers + name + survival
-curve), and a tissue-map payload. Writes viz/app/dashboard_data.js so
-viz/app/dashboard.html can render offline.
+Reads data/basel_niched.h5ad (frozen niche labels + the cached neighborhood
+enrichment) and demo/findings.json (the precomputed per-niche survival plus the
+honesty bundle). It does NOT re-run the engine and does NOT re-cluster: the niche
+numbering is frozen and is what the report, the transcript, and the PDF refer to.
+Re-clustering would renumber the niches and break all three.
+
+Writes src/localespatial/viz/app/dashboard_data.js for the offline dashboard.
 
     python scripts/build_dashboard.py
-    LOCALE_DATA=data/locale.h5ad python scripts/build_dashboard.py --image <id>
+    LOCALE_DATA=/abs/path/other.h5ad python scripts/build_dashboard.py
 """
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 from pathlib import Path
 
 import anndata as ad
+import numpy as np
 
-from src.localespatial.engine import characterize, enrichment, graph, niches, outcome
-from src.localespatial.mcp_server import interpret
-from src.localespatial.viz.payload import build_map_payload
+from src.localespatial.metaclusters import METACLUSTERS
 
-APP_DIR = Path(__file__).resolve().parents[1] / "src" / "locale" / "viz" / "app"
+ROOT = Path(__file__).resolve().parents[1]
+APP_DIR = ROOT / "src" / "localespatial" / "viz" / "app"
+FINDINGS = ROOT / "demo" / "findings.json"
+
+MAJOR_ORDER = ["immune", "endothelial", "stroma", "tumor"]
+MAP_CORE = "BaselTMA_SP43_144_X15Y1"  # 32% tumor, compartmentalised: shows the niches
+MAP_MAX_PER_CORE = 10_000  # never ship a whole core's worth of points to a canvas
 
 
 def _data_path() -> Path:
+    """The real cohort object, or an explicit override. Never the mock.
+
+    Silently falling back to data/mock.h5ad is exactly how the dashboard ended up
+    reporting 3 patients, so a missing real file is a hard error here.
+    """
     env = os.environ.get("LOCALE_DATA")
-    if env:
-        return Path(env)
-    root = Path(__file__).resolve().parents[1]
-    real = root / "data" / "locale.h5ad"
-    return real if real.exists() else root / "data" / "mock.h5ad"
+    path = Path(env) if env else ROOT / "data" / "basel_niched.h5ad"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"{path} not found. The dashboard is built on the real cohort, not the "
+            "mock. Build data/basel_niched.h5ad (scripts/build_basel.py then "
+            "scripts/run_basel_niches.py) or set LOCALE_DATA to the real object. "
+            "This script never falls back to data/mock.h5ad."
+        )
+    return path
+
+
+def _major_enrichment(a: ad.AnnData) -> dict:
+    """Four-by-four major-class mean z from the cached metacluster enrichment.
+
+    Reads the enrichment already stored in obs/uns; it does not recompute it.
+    """
+    z = np.asarray(a.uns["metacluster_id_nhood_enrichment"]["zscore"], dtype=float)
+    cats = [int(c) for c in a.obs["metacluster_id"].cat.categories]
+    maj = np.array([METACLUSTERS[c][1] for c in cats])
+    zscores = [
+        [
+            round(float(np.nanmean(z[np.ix_(maj == r, maj == c)])), 1)
+            for c in MAJOR_ORDER
+        ]
+        for r in MAJOR_ORDER
+    ]
+    return {"cell_types": MAJOR_ORDER, "zscores": zscores}
+
+
+def _cards(findings: dict) -> list[dict]:
+    """One card per frozen niche, each carrying the full honesty bundle."""
+    cohort = findings["cohort"]
+    alpha = float(cohort.get("alpha", 0.05))
+    cards = []
+    for nid_str, n in findings["niches"].items():
+        q = float(n["q_fdr"])
+        stats = {
+            "hazard_ratio": round(float(n["hazard_ratio"]), 3),
+            "ci_95": [round(float(n["ci_95"][0]), 3), round(float(n["ci_95"][1]), 3)],
+            "p_raw": round(float(n["p_raw"]), 4),
+            "q_fdr": round(q, 4),
+            "n_hypotheses_tested": int(cohort["n_hypotheses_tested"]),
+            "p_selection_aware": round(float(cohort["p_selection_aware"]), 3),
+            "n_events": int(cohort["n_events"]),
+            "min_detectable_hr": round(float(cohort["min_detectable_hr"]), 3),
+            "verdict": "supported" if q < alpha else "insufficient evidence",
+        }
+        cards.append(
+            {
+                "niche_id": int(nid_str),
+                "name": n["name"],
+                "composition": n["composition_major"],
+                "dominant": n.get("top_metaclusters", []),
+                "n_cells": int(n["n_cells"]),
+                "n_cores": int(n["n_cores"]),
+                "note": n.get("phenotype_note", ""),
+                "stats": stats,
+            }
+        )
+    # Lead with the most significant-looking niche, so the honest verdict on it is
+    # the first thing a reader sees.
+    cards.sort(key=lambda c: c["stats"]["p_raw"])
+    return cards
+
+
+def _pick_core(a: ad.AnnData) -> str:
+    cores = a.obs["core"].astype(str)
+    if MAP_CORE in set(cores):
+        return MAP_CORE
+    core_arr = cores.to_numpy()
+    maj = a.obs["major"].astype(str).to_numpy()
+    counts = cores.value_counts()
+    big = counts[counts > 1500].index
+    best, best_d = str(counts.index[0]), 9.0
+    for c in big:
+        m = core_arr == c
+        d = abs(float((maj[m] == "tumor").mean()) - 0.4)
+        if d < best_d:
+            best, best_d = str(c), d
+    return best
+
+
+def _map(a: ad.AnnData, core: str) -> dict:
+    """One core's cells for the tissue map, downsampled to MAP_MAX_PER_CORE points."""
+    core_arr = a.obs["core"].astype(str).to_numpy()
+    idx = np.where(core_arr == core)[0]
+    if idx.size > MAP_MAX_PER_CORE:
+        rng = np.random.default_rng(0)
+        idx = np.sort(rng.choice(idx, MAP_MAX_PER_CORE, replace=False))
+    xy = np.asarray(a.obsm["spatial"], dtype=float)[idx]
+    maj = a.obs["major"].astype(str).to_numpy()[idx]
+    niche = a.obs["niche"].to_numpy().astype(int)[idx]
+    units = [
+        {
+            "x": round(float(xy[i, 0]), 1),
+            "y": round(float(xy[i, 1]), 1),
+            "cell_type": str(maj[i]),  # major class, so the map colours cleanly
+            "niche_id": int(niche[i]),
+        }
+        for i in range(idx.size)
+    ]
+    return {"image_id": core, "units": units, "color_mode": "niche"}
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--n-niches", type=int, default=6)
-    parser.add_argument("--image", default=None)
-    args = parser.parse_args()
-
     a = ad.read_h5ad(_data_path())
-    graph.build_spatial_graph(a)
-    niches.find_niches(a, n_niches=args.n_niches)
-    enr = enrichment.compute_enrichment(a, "cohort:breast", n_perms=500)
-
-    prognostic_by_id = dict(outcome.rank_prognostic_niches(a))
-    cards = []
-    for nid in sorted({int(n) for n in a.obs["niche"].to_numpy()}):
-        niche = characterize.characterize_niche(a, nid)
-        named = interpret.name_and_describe_niche(
-            niche.composition, niche.marker_program, nid
-        )
-        prog = prognostic_by_id.get(nid)
-        cards.append(
-            {
-                "niche_id": nid,
-                "name": named["name"],
-                "description": named["description"],
-                "composition": niche.composition,
-                "marker_program": niche.marker_program,
-                "prognostic": prog.model_dump() if prog is not None else None,
-            }
-        )
-    # Prognostic niches first (worst survival = highest HR first), then the rest.
-    cards.sort(
-        key=lambda c: (
-            c["prognostic"] is not None,
-            c["prognostic"]["hazard_ratio"] if c["prognostic"] else 0.0,
-        ),
-        reverse=True,
-    )
-
-    a.uns["niche_names"] = {str(c["niche_id"]): c["name"] for c in cards}
-    image_id = args.image or sorted(set(a.obs["image_id"].astype(str)))[0]
-    map_payload = build_map_payload(a, image_id, "niche").model_dump()
+    findings = json.loads(FINDINGS.read_text())
+    cohort = findings["cohort"]
+    cards = _cards(findings)
+    core = _pick_core(a)
 
     bundle = {
         "cohort": "breast",
         "n_cells": int(a.n_obs),
-        "n_patients": int(a.obs["patient_id"].nunique()),
-        "n_images": int(a.obs["image_id"].nunique()),
-        "images": sorted(set(a.obs["image_id"].astype(str))),
-        "enrichment": enr.model_dump(),
+        "n_patients": (
+            int(a.obs["PID"].nunique())
+            if "PID" in a.obs.columns
+            else int(cohort["n_patients"])
+        ),
+        "n_images": int(a.obs["core"].nunique()),
+        "n_niches": len(cards),
+        "n_events": int(cohort["n_events"]),
+        "context": {
+            "n_hypotheses_tested": int(cohort["n_hypotheses_tested"]),
+            "p_selection_aware": round(float(cohort["p_selection_aware"]), 3),
+            "n_events": int(cohort["n_events"]),
+            "min_detectable_hr": round(float(cohort["min_detectable_hr"]), 3),
+        },
+        "enrichment": _major_enrichment(a),
         "niches": cards,
-        "map": map_payload,
+        "map": _map(a, core),
     }
+
+    # Guard: never let a mock-sized bundle out the door.
+    assert (
+        bundle["n_cells"] > 700_000
+        and bundle["n_patients"] == 281
+        and bundle["n_niches"] == 12
+    ), (
+        f"refusing to write a dashboard built on the wrong data: "
+        f"{bundle['n_cells']} cells, {bundle['n_patients']} patients, "
+        f"{bundle['n_niches']} niches"
+    )
 
     APP_DIR.mkdir(parents=True, exist_ok=True)
     out = APP_DIR / "dashboard_data.js"
@@ -96,11 +191,14 @@ def main() -> None:
     )
     print(f"wrote {out}")
     print(
-        f"  {bundle['n_cells']} cells, {bundle['n_patients']} patients, "
-        f"{len(cards)} niches, map image {image_id} ({len(map_payload['units'])} cells)"
+        f"  {bundle['n_cells']:,} cells, {bundle['n_patients']} patients, "
+        f"{bundle['n_niches']} niches, {bundle['n_images']} cores, "
+        f"{bundle['n_events']} deaths"
     )
-    prog = [c for c in cards if c["prognostic"]]
-    print(f"  prognostic niches: {len(prog)} (top: {cards[0]['name']})")
+    print(
+        f"  map core {bundle['map']['image_id']}: {len(bundle['map']['units'])} points"
+    )
+    print(f"  niche verdicts: {sorted({c['stats']['verdict'] for c in cards})}")
 
 
 if __name__ == "__main__":
