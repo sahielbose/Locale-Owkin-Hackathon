@@ -107,6 +107,35 @@ def _engine_block() -> dict | None:
         return None
 
 
+def _risk_block() -> dict | None:
+    """Patient-level risk model for the demo. The real Basel object is not committed,
+    so this fits on the Basel-matched synthetic cohort; the coefficients are
+    illustrative but the honest verdict (insufficient evidence) is the real one."""
+    import warnings
+
+    warnings.filterwarnings("ignore")
+    try:
+        sys.path.insert(0, str(ROOT))
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from run_basel_risk import _synthetic_basel
+
+        from src.localespatial.engine import risk as RISK
+        from src.localespatial.webanalyze import risk_bundle
+
+        adata = _synthetic_basel(seed=0)
+        card = RISK.fit_risk_model(adata)
+        scores = RISK.score_cohort(adata, card)
+        b = risk_bundle(card, scores)
+        b["source_label"] = (
+            "Fitted on a Basel-matched synthetic cohort (the real Basel object is not "
+            "committed): the coefficients are illustrative, but the verdict is the real one."
+        )
+        return b
+    except Exception as exc:  # noqa: BLE001
+        print(f"(risk block skipped: {exc})", file=sys.stderr)
+        return None
+
+
 def _test_inputs() -> dict:
     """The actual data the suite runs against, so a reviewer can reproduce it."""
     base = {
@@ -233,6 +262,7 @@ def main() -> None:
         "tests": tests,
         "meta": meta,
         "engine": _engine_block(),
+        "risk": _risk_block(),
         "k_sweep": k_sweep,
         "figures": figures,
         "inputs": _test_inputs(),

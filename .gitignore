@@ -51,3 +51,4 @@ src/locale/viz/app/assets/*
 
 # Generated risk model card (regenerate with scripts/run_basel_risk.py; synthetic unless real Basel data present)
 reports/risk_model_card.json
+reports/risk_model_card.json

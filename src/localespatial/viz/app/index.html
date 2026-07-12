@@ -184,6 +184,21 @@
     width:170px; border:1px solid #111; padding:6px 10px; background:#fafafa; }
   #lab table.io td { border:1px solid #111; padding:6px 10px; }
   #lab table.io code, #lab .note code { font-family:'Computer Modern Typewriter',ui-monospace,monospace; }
+  #lab .verdict { border:2px solid #111; padding:12px 16px; margin-bottom:14px; display:flex; align-items:baseline; gap:12px; }
+  #lab .verdict .vlabel { font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; }
+  #lab .verdict .vreason { font-size:13px; color:#222; }
+  #lab .verdict.supported { border-color:#2e8b57; background:#eef7f0; }
+  #lab .verdict.supported .vlabel { color:#2e8b57; }
+  #lab .verdict.insufficient { border-color:#b8860b; background:#fbf6ea; }
+  #lab .verdict.insufficient .vlabel { color:#9a6d06; }
+  #lab .verdict.noteval { border-color:#777; background:#f4f4f4; }
+  #lab .verdict.noteval .vlabel { color:#555; }
+  #lab .rgroups { display:flex; border:1px solid #111; height:22px; margin:4px 0 6px; font-size:11px; }
+  #lab .rgroups span { display:flex; align-items:center; justify-content:center; color:#fff; white-space:nowrap; overflow:hidden; }
+  #lab table.pat { border-collapse:collapse; width:100%; font-size:12.5px; }
+  #lab table.pat th { text-align:left; border-bottom:1px solid #111; padding:5px 8px; color:#333; font-weight:700; }
+  #lab table.pat td { border-bottom:1px solid #ddd; padding:5px 8px; vertical-align:top; }
+  #lab table.pat .rg { font-weight:700; }
   #lab .hide { display:none; }
 </style>
 </head>
@@ -366,7 +381,16 @@
       <h3>Marker validation</h3>
       <div class="cards" id="lvd-markers"></div>
 
-      <h2><span class="secno">6.</span>Test suite</h2>
+      <h2><span class="secno">6.</span>Patient risk model</h2>
+      <p class="note" id="risk-lead"></p>
+      <div id="risk-verdict"></div>
+      <div class="stats" id="risk-stats"></div>
+      <h3>Which niches drive risk (hazard ratio per SD of abundance)</h3>
+      <div class="forest" id="risk-coef"></div>
+      <h3 id="risk-pat-h">Cohort risk groups and highest-risk patients</h3>
+      <div id="risk-patients"></div>
+
+      <h2><span class="secno">7.</span>Test suite</h2>
       <p class="note" id="lvt-lead"></p>
       <h3>Inputs (reproduce this run)</h3>
       <div id="lvt-inputs"></div>
@@ -485,6 +509,66 @@
   }).join("");
 
   // Tests
+  // ---- patient risk model (inseparable from its verdict) ----
+  (function () {
+    var risk = LAB.risk;
+    var lead = document.getElementById("risk-lead"), vEl = document.getElementById("risk-verdict");
+    var sEl = document.getElementById("risk-stats"), cEl = document.getElementById("risk-coef");
+    var pEl = document.getElementById("risk-patients"), pH = document.getElementById("risk-pat-h");
+    if (!risk) {
+      lead.textContent = "Risk model not computed for this run.";
+      vEl.innerHTML = ""; sEl.innerHTML = ""; cEl.innerHTML = ""; pEl.innerHTML = ""; pH.style.display = "none"; return;
+    }
+    lead.innerHTML = "A multivariate Cox model over the niche abundances scores each patient's risk, reported " +
+      "<b>inseparably from its trust verdict</b>: a score is only actionable when the model shows out-of-fold " +
+      "discrimination and calibration. " + esc(risk.source_label || "Computed live on this cohort.");
+    var vclass = risk.verdict === "supported" ? "supported" : (risk.verdict === "insufficient evidence" ? "insufficient" : "noteval");
+    vEl.className = "verdict " + vclass;
+    vEl.innerHTML = '<span class="vlabel">Verdict: ' + esc(risk.verdict) + '</span><span class="vreason">' + esc(risk.verdict_reason || "") + "</span>";
+    var rs = [];
+    if (risk.c_index_cv != null) rs.push([risk.c_index_cv.toFixed(3), "c-index (out-of-fold)", risk.c_index_ci_95 ? "95% CI " + risk.c_index_ci_95[0].toFixed(2) + " to " + risk.c_index_ci_95[1].toFixed(2) : ""]);
+    if (risk.calibration_slope != null) rs.push([risk.calibration_slope.toFixed(2), "calibration slope", "1.00 = calibrated"]);
+    if (risk.n_train_patients != null) rs.push([risk.n_train_patients, "train patients", risk.n_events != null ? risk.n_events + " events" : ""]);
+    if (risk.cv_folds != null) rs.push([risk.cv_folds, "CV folds", (risk.covariates_adjusted && risk.covariates_adjusted.length) ? "adj: " + risk.covariates_adjusted.join(", ") : "unadjusted"]);
+    sEl.innerHTML = rs.map(function (s) { return '<div class="stat"><div class="v">' + s[0] + '</div><div class="k">' + s[1] + "</div>" + (s[2] ? '<div class="sub">' + s[2] + "</div>" : "") + "</div>"; }).join("");
+    var coefs = risk.coefficients || [];
+    if (coefs.length) {
+      var lo2 = 0.5, hi2 = 2; coefs.forEach(function (cf) { lo2 = Math.min(lo2, cf.ci_95[0]); hi2 = Math.max(hi2, cf.ci_95[1]); });
+      var LG = Math.log(Math.max(0.35, lo2)), HG = Math.log(Math.min(3, hi2));
+      var xr = function (hr) { return Math.max(0, Math.min(100, (Math.log(Math.max(0.35, Math.min(3, hr))) - LG) / (HG - LG) * 100)); };
+      cEl.innerHTML = coefs.map(function (cf) {
+        var col = cf.hr_per_sd >= 1 ? "#c0392b" : "#2e8b57";
+        var l = xr(cf.ci_95[0]), h = xr(cf.ci_95[1]), p = xr(cf.hr_per_sd);
+        var bar = '<div style="position:relative;height:22px">' +
+          '<div style="position:absolute;left:' + xr(1) + '%;top:0;bottom:0;width:1px;background:#999"></div>' +
+          '<div style="position:absolute;top:10px;left:' + l + '%;width:' + (h - l) + '%;height:2px;background:' + col + '"></div>' +
+          '<div style="position:absolute;top:5px;left:' + p + '%;width:10px;height:10px;border-radius:50%;border:1.5px solid #fff;background:' + col + ';box-shadow:0 0 0 1px ' + col + ';transform:translateX(-50%)"></div></div>';
+        return '<div class="frow"><div class="fname" title="' + esc(cf.name) + '">' + esc(cf.name) + "</div>" + bar +
+          '<div class="fstat">HR/SD ' + cf.hr_per_sd.toFixed(2) + " · p " + cf.p.toFixed(2) + "</div></div>";
+      }).join("") +
+        '<div class="faxis"><div>&larr; protective &middot; risk &rarr;</div><div class="ticks">' +
+        '<span style="left:' + xr(0.5) + '%">0.5</span><span style="left:' + xr(1) + '%">1.0</span><span style="left:' + xr(2) + '%">2.0</span></div><div></div></div>';
+    } else { cEl.innerHTML = '<div class="vsmall">No coefficients (model not evaluable on this object).</div>'; }
+    var g = risk.groups || {}, gt = (g.low || 0) + (g.intermediate || 0) + (g.high || 0);
+    var gbar = gt ? '<div class="rgroups"><span style="flex:' + (g.low || 0) + ';background:#2e8b57">low ' + (g.low || 0) + "</span>" +
+      '<span style="flex:' + (g.intermediate || 0) + ';background:#b8860b">intermediate ' + (g.intermediate || 0) + "</span>" +
+      '<span style="flex:' + (g.high || 0) + ';background:#c0392b">high ' + (g.high || 0) + "</span></div>" : "";
+    function prow(s) {
+      var col = s.risk_group === "high" ? "#c0392b" : s.risk_group === "low" ? "#2e8b57" : "#b8860b";
+      var top = (s.top || []).map(function (t) { return esc(t.name) + " (" + (t.contribution >= 0 ? "+" : "") + t.contribution.toFixed(2) + ")"; }).join(", ");
+      return "<tr><td>" + esc(s.patient_id || s.image_id || "?") + "</td><td>" + (s.risk_score >= 0 ? "+" : "") + s.risk_score.toFixed(3) + "</td>" +
+        "<td>" + Math.round(s.risk_percentile) + '</td><td class="rg" style="color:' + col + '">' + esc(s.risk_group) + "</td><td>" + top + "</td></tr>";
+    }
+    var tops = risk.top_patients || [], bots = risk.bottom_patients || [];
+    if (tops.length) {
+      pH.style.display = "";
+      pEl.innerHTML = gbar + '<table class="pat"><tr><th>patient</th><th>risk</th><th>pct</th><th>group</th><th>top contributing niches</th></tr>' +
+        tops.map(prow).join("") + bots.map(prow).join("") + "</table>" +
+        '<div class="vsmall" style="margin-top:6px">Highest- and lowest-scoring patients; each risk score is the sum of its niche contributions.' +
+        (risk.verdict !== "supported" ? " Because the verdict is <b>" + esc(risk.verdict) + "</b>, these scores are shown for transparency and are <b>not clinically actionable</b>." : "") + "</div>";
+    } else { pH.style.display = "none"; pEl.innerHTML = ""; }
+  })();
+
   var m = LAB.meta || {}, tests = LAB.tests || [];
   var hasTests = tests.length > 0;
   document.getElementById("lvt-resh").style.display = hasTests ? "" : "none";

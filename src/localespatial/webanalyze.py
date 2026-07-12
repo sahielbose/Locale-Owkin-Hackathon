@@ -67,6 +67,63 @@ def canonicalize(adata: AnnData) -> AnnData:
     return adata
 
 
+def risk_bundle(card, scores) -> dict:
+    """Flatten a RiskModelCard + per-patient RiskScores into the report's JSON shape."""
+    names: dict[int, str] = {}
+    for s in scores:
+        for nc in s.top_contributing_niches:
+            names[nc.niche_id] = nc.name
+    ev = card.evidence
+    coeffs = sorted(
+        [
+            {
+                "niche_id": nid,
+                "name": names.get(nid, f"niche {nid}"),
+                "coef": float(cf.coef),
+                "hr_per_sd": float(cf.hr_per_sd),
+                "ci_95": [float(cf.ci_95[0]), float(cf.ci_95[1])],
+                "p": float(cf.p),
+            }
+            for nid, cf in card.coefficients.items()
+        ],
+        key=lambda d: -abs(d["coef"]),
+    )
+    groups = {"low": 0, "intermediate": 0, "high": 0}
+    for s in scores:
+        groups[s.risk_group] = groups.get(s.risk_group, 0) + 1
+
+    def pat(s) -> dict:
+        return {
+            "patient_id": s.patient_id,
+            "image_id": s.image_id,
+            "risk_score": float(s.risk_score),
+            "risk_percentile": float(s.risk_percentile),
+            "risk_group": s.risk_group,
+            "top": [
+                {"name": nc.name, "contribution": float(nc.contribution)}
+                for nc in s.top_contributing_niches[:3]
+            ],
+        }
+
+    ranked = sorted(scores, key=lambda s: -s.risk_score)
+    return {
+        "verdict": ev.verdict,
+        "verdict_reason": ev.verdict_reason,
+        "c_index_cv": float(card.c_index_cv),
+        "c_index_ci_95": [float(x) for x in card.c_index_ci_95],
+        "calibration_slope": float(card.calibration_slope),
+        "n_train_patients": int(card.n_train_patients),
+        "n_events": int(card.n_events),
+        "cv_folds": int(card.cv_folds),
+        "covariates_adjusted": list(card.covariates_adjusted),
+        "coefficients": coeffs,
+        "groups": groups,
+        "n_scored": len(scores),
+        "top_patients": [pat(s) for s in ranked[:5]],
+        "bottom_patients": [pat(s) for s in ranked[-5:][::-1]],
+    }
+
+
 def analyze(adata: AnnData, n_niches: int = 6) -> dict:
     adata = canonicalize(adata)
     from .engine import characterize as CH
@@ -172,6 +229,26 @@ def analyze(adata: AnnData, n_niches: int = 6) -> dict:
     except Exception as exc:  # noqa: BLE001
         validation = {"error": str(exc)}
 
+    # patient-level risk model (Cox over niche abundances), inseparable from its verdict
+    try:
+        from .engine import risk as RISK
+
+        cov = [c for c in ("grade", "clinical_type") if c in adata.obs]
+        card = RISK.fit_risk_model(labeled, covariates=cov, n_perm=200)
+        scores = RISK.score_cohort(
+            labeled, card, niche_names={c.niche_id: c.name for c in cards}
+        )
+        risk = risk_bundle(card, scores)
+    except Exception as exc:  # noqa: BLE001
+        risk = {
+            "verdict": "not evaluable",
+            "verdict_reason": str(exc),
+            "coefficients": [],
+            "groups": {},
+            "top_patients": [],
+            "bottom_patients": [],
+        }
+
     obs = adata.obs
     has_surv = "os_month" in obs
     cohort = {
@@ -209,6 +286,7 @@ def analyze(adata: AnnData, n_niches: int = 6) -> dict:
             "n_niches": len(ids),
             "has_survival": bool(has_surv),
         },
+        "risk": risk,
         "figures": [],
         "k_sweep": None,
         "tests": [],
