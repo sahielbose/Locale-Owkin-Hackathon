@@ -24,6 +24,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 APP_DIR = ROOT / "src" / "localespatial" / "viz" / "app"
 FINDINGS = ROOT / "demo" / "findings.json"
+RISK_CARD = ROOT / "reports" / "risk_model_card.json"
 
 MAP_CORE = "BaselTMA_SP43_144_X15Y1"  # 32% tumor, compartmentalised: shows the niches
 MAP_MAX_PER_CORE = 10_000  # never ship a whole core's worth of points to a canvas
@@ -45,6 +46,30 @@ def _data_path() -> Path:
             "This script never falls back to data/mock.h5ad."
         )
     return path
+
+
+def _risk() -> dict | None:
+    """The risk model card's honest evaluation for the dashboard risk panel.
+
+    Reads reports/risk_model_card.json (scripts/run_basel_risk.py). The panel exists to
+    show the in-sample c-index next to the out-of-fold one: the number we declined to
+    report, beside the one we did. Returns None if the card has not been generated.
+    """
+    if not RISK_CARD.exists():
+        return None
+    card = json.loads(RISK_CARD.read_text())
+    ev = card["evidence"]
+    return {
+        "c_index_in_sample": card["c_index_in_sample"],
+        "c_index_out_of_fold": card["c_index_out_of_fold"],
+        "c_index_ci_95": card["c_index_ci_95"],
+        "optimism_gap": card["optimism_gap"],
+        "n_patients": card["n_train_patients"],
+        "n_events": card["n_events"],
+        "n_features": len(card["features"]),
+        "verdict": ev["verdict"],
+        "verdict_reason": ev["verdict_reason"],
+    }
 
 
 def _major_enrichment(findings: dict) -> dict:
@@ -160,6 +185,7 @@ def main() -> None:
         "enrichment": _major_enrichment(findings),
         "niches": cards,
         "map": _map(a, core),
+        "risk": _risk(),
     }
 
     # Guard: never let a mock-sized bundle out the door.

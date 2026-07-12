@@ -125,7 +125,18 @@ def main() -> None:
     print(f"  covariates adjusted: {model.covariates_adjusted}")
     print(f"  train patients:      {model.n_train_patients}   events: {model.n_events}")
     print(f"  cv folds:            {model.cv_folds}")
-    print(f"  c-index (out-of-fold): {ev.c_index_cv:.3f}  95% CI {ev.c_index_ci_95}")
+    print(
+        f"  c-index (IN-SAMPLE):   {model.c_index_in_sample:.3f}  "
+        "(optimistic, biased high; do not act on this)"
+    )
+    print(
+        f"  c-index (out-of-fold): {model.c_index_out_of_fold:.3f}  "
+        f"95% CI {ev.c_index_ci_95}  (the honest one)"
+    )
+    print(
+        f"  optimism gap:          {model.optimism_gap:+.3f}  "
+        "(how much in-sample overstates)"
+    )
     print(f"  calibration slope:   {ev.calibration_slope:.3f}")
     print(
         f"  n hypotheses tested: {ev.n_hypotheses_tested}   q_fdr_min: {ev.q_fdr_min}"

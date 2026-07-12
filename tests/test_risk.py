@@ -143,6 +143,22 @@ def test_c_index_is_out_of_fold(cohort, model):
     assert lo <= c_cv <= hi
 
 
+def test_in_sample_c_index_is_optimistic_and_reported(cohort, model):
+    """The card carries the flattering number, the honest one, and the gap between."""
+    assert model.c_index_out_of_fold == model.evidence.c_index_cv
+    # in-sample has seen every outcome, so it cannot be worse than out-of-fold here
+    assert model.c_index_in_sample >= model.c_index_out_of_fold
+    assert (
+        abs(model.optimism_gap - (model.c_index_in_sample - model.c_index_out_of_fold))
+        < 1e-9
+    )
+    # c_index_in_sample matches a manual full-cohort fit-and-score (the flattering path)
+    ab, pat, covs = risk._prep(cohort, model.covariates_adjusted)
+    coeffs, mean, std, _ = risk._fit_coeffs(ab, pat, covs, risk._DEFAULT_PENALIZER)
+    c_in = risk._in_sample_c_index(ab, pat, coeffs, mean, std)
+    assert abs(c_in - model.c_index_in_sample) < 1e-3
+
+
 # --- 3. reducing events flips the verdict to "insufficient evidence" --------------
 
 
