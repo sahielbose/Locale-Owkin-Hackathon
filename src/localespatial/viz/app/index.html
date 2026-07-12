@@ -129,6 +129,28 @@
   #lab .trow .tn { font-size:12.5px; }
   #lab .trow .tn small { color:var(--muted); font-family:ui-monospace,Menlo,monospace; font-size:10.5px; }
   #lab .trow .ms { text-align:right; color:var(--muted); font-size:11px; font-variant-numeric:tabular-nums; }
+  #lab .heatwrap { overflow-x:auto; background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; }
+  #lab table.heat { border-collapse:collapse; font-size:11px; }
+  #lab table.heat th { color:var(--muted); font-weight:600; padding:3px 6px; white-space:nowrap; }
+  #lab table.heat th.row { text-align:right; }
+  #lab table.heat th.col { height:74px; vertical-align:bottom; }
+  #lab table.heat th.col span { writing-mode:vertical-rl; transform:rotate(180deg); display:inline-block; }
+  #lab table.heat td { width:44px; height:36px; text-align:center; color:#eef1f6; font-weight:600;
+    border:2px solid var(--panel); border-radius:4px; font-variant-numeric:tabular-nums; }
+  #lab .kmcard { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:13px 15px; }
+  #lab .kmcard .ktop { display:flex; justify-content:space-between; align-items:baseline; }
+  #lab .kmcard .knm { font-size:13px; font-weight:650; }
+  #lab .kmcard .khr { font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; }
+  #lab .kmlegend { display:flex; gap:14px; font-size:10.5px; color:var(--muted); margin-top:4px; }
+  #lab .kmlegend i { display:inline-block; width:12px; height:2px; vertical-align:middle; margin-right:5px; }
+  #lab .vcard { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:15px 16px; }
+  #lab .vcard .vh { font-size:13px; font-weight:650; margin-bottom:4px; display:flex; align-items:center; gap:8px; }
+  #lab .badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:20px; }
+  #lab .badge.ok { background:#153a28; color:#4ade80; } #lab .badge.no { background:#3a1a1a; color:#f0776a; }
+  #lab .vbar { height:8px; border-radius:5px; background:#0b0d11; overflow:hidden; margin:9px 0 4px; }
+  #lab .vbar i { display:block; height:100%; }
+  #lab .vsmall { color:var(--muted); font-size:11px; }
+  #lab .mk { display:flex; align-items:center; gap:9px; font-size:12px; padding:6px 0; }
   #lab .hide { display:none; }
 </style>
 </head>
@@ -264,7 +286,7 @@
 <div id="lab">
   <div class="bar">
     <h2>Locale</h2><span class="sub">engine &amp; tests</span>
-    <div class="ltabs"><button id="lt-find" class="on">Findings</button><button id="lt-test">Tests</button></div>
+    <div class="ltabs"><button id="lt-find" class="on">Findings</button><button id="lt-enrich">Enrichment</button><button id="lt-surv">Survival</button><button id="lt-valid">Validation</button><button id="lt-test">Tests</button></div>
     <span class="spacer"></span>
     <button class="close" id="lab-close" title="Back to the zoom">&times;</button>
   </div>
@@ -280,6 +302,22 @@
         <span><i style="background:#5bbd6b"></i>stroma</span>
         <span><i style="background:#9a7fd1"></i>other</span></div>
       <div class="cards" id="lf-cards"></div>
+    </section>
+    <section id="lv-enrich" class="hide">
+      <div class="lead" id="le-lead"></div>
+      <div class="heatwrap"><table class="heat" id="le-heat"></table></div>
+      <div class="clegend" style="margin-top:14px"><span><i style="background:#4a90d9"></i>avoid (z&lt;0)</span>
+        <span><i style="background:#2a2f3a"></i>neutral</span><span><i style="background:#d9544d"></i>co-locate (z&gt;0)</span></div>
+    </section>
+    <section id="lv-surv" class="hide">
+      <div class="lead" id="ls-lead"></div>
+      <div class="cards" id="ls-cards"></div>
+    </section>
+    <section id="lv-valid" class="hide">
+      <div class="lead" id="lvd-lead"></div>
+      <div class="cards" id="lvd-top"></div>
+      <h3 class="sec">Marker validation (does each niche's protein profile match its cells?)</h3>
+      <div class="cards" id="lvd-markers"></div>
     </section>
     <section id="lv-test" class="hide">
       <div class="lead" id="lvt-lead"></div>
@@ -388,14 +426,95 @@
     return '<div class="tfile"><h4>'+esc(file)+' <span class="count">'+pass+'/'+arr.length+' passing</span></h4>'+rows+'</div>';
   }).join("");
 
-  function ltab(which){
-    document.getElementById("lv-find").classList.toggle("hide", which!=="find");
-    document.getElementById("lv-test").classList.toggle("hide", which!=="test");
-    document.getElementById("lt-find").classList.toggle("on", which==="find");
-    document.getElementById("lt-test").classList.toggle("on", which==="test");
+  // ---- engine graphs: enrichment heatmap, KM survival, validation ----
+  var eng = LAB.engine;
+  if (eng) {
+    // enrichment heatmap
+    document.getElementById("le-lead").innerHTML =
+      "Which cell types sit next to each other across the cohort — squidpy neighborhood-enrichment " +
+      "z-scores against a permutation null. <b>Red</b> pairs co-locate more than chance, <b>blue</b> pairs " +
+      "avoid each other. " + esc(eng.cohort_label) + ".";
+    var ct = eng.enrichment.cell_types, Z = eng.enrichment.zscores, zmax = 0;
+    Z.forEach(function (r) { r.forEach(function (v) { zmax = Math.max(zmax, Math.abs(v)); }); });
+    zmax = zmax || 1;
+    function zcolor(v) {
+      var t = Math.max(-1, Math.min(1, v / zmax));
+      return t >= 0 ? "rgba(217,84,77," + (0.12 + 0.88 * t).toFixed(2) + ")"
+                    : "rgba(74,144,217," + (0.12 + 0.88 * -t).toFixed(2) + ")";
+    }
+    var h = "<tr><th></th>" + ct.map(function (c) { return '<th class="col"><span>' + esc(c) + "</span></th>"; }).join("") + "</tr>";
+    Z.forEach(function (row, i) {
+      h += '<tr><th class="row">' + esc(ct[i]) + "</th>" + row.map(function (v, j) {
+        return '<td style="background:' + zcolor(v) + '" title="' + esc(ct[i]) + " ↔ " + esc(ct[j]) + '">' + v.toFixed(1) + "</td>";
+      }).join("") + "</tr>";
+    });
+    document.getElementById("le-heat").innerHTML = h;
+
+    // KM survival curves
+    document.getElementById("ls-lead").innerHTML =
+      "Kaplan-Meier survival for patients with <b>high</b> vs <b>low</b> abundance of each niche " +
+      "(median split), from the Cox/KM engine. " + esc(eng.cohort_label) + ".";
+    function kmSvg(km) {
+      var W = 280, H = 118, p = 6, tmax = km.time[km.time.length - 1] || 1;
+      function ln(a, st, dash) {
+        var pts = a.map(function (v, i) {
+          return (p + (km.time[i] / tmax) * (W - 2 * p)).toFixed(1) + "," + (p + (1 - Math.max(0, Math.min(1, v))) * (H - 2 * p)).toFixed(1);
+        }).join(" ");
+        return '<polyline fill="none" stroke="' + st + '" stroke-width="1.8"' + (dash ? ' stroke-dasharray="3 2"' : "") + ' points="' + pts + '"/>';
+      }
+      return '<svg width="100%" viewBox="0 0 ' + W + " " + H + '">' +
+        '<line x1="' + p + '" y1="' + (H - p) + '" x2="' + (W - p) + '" y2="' + (H - p) + '" stroke="#2a2f3a"/>' +
+        '<line x1="' + p + '" y1="' + p + '" x2="' + p + '" y2="' + (H - p) + '" stroke="#2a2f3a"/>' +
+        ln(km.high, "#6ea8fe", false) + ln(km.low, "#9aa4b2", true) + "</svg>";
+    }
+    document.getElementById("ls-cards").innerHTML = (eng.survival || []).map(function (s) {
+      var col = s.hazard_ratio >= 1 ? "var(--bad)" : "var(--good)";
+      return '<div class="kmcard"><div class="ktop"><span class="knm">' + esc(s.name) + "</span>" +
+        '<span class="khr" style="color:' + col + '">HR ' + s.hazard_ratio.toFixed(2) + "</span></div>" +
+        '<div class="vsmall">p ' + s.pvalue.toFixed(3) + " · n=" + s.n_patients + "</div>" + kmSvg(s.km) +
+        '<div class="kmlegend"><span><i style="background:#6ea8fe"></i>high abundance</span><span><i style="background:#9aa4b2"></i>low</span></div></div>';
+    }).join("") || '<div class="vsmall">No survival-viable niches in this cohort.</div>';
+
+    // validation
+    var val = eng.validation, sh = val.shuffle, stab = val.stability_ari;
+    document.getElementById("lvd-lead").innerHTML =
+      "How we prove the niches are real signal, not clustering artifacts. " + esc(eng.cohort_label) + ".";
+    document.getElementById("lvd-top").innerHTML =
+      '<div class="vcard"><div class="vh">Spatial null control ' +
+        '<span class="badge ' + (sh.collapsed ? "ok" : "no") + '">' + (sh.collapsed ? "signal collapses" : "not collapsed") + "</span></div>" +
+        '<div class="vsmall">Destroy the spatial structure (shuffle) and the niche signal should vanish. ' +
+        'Real effect <b style="color:var(--ink)">' + sh.real_effect.toFixed(3) + "</b> vs shuffled " +
+        sh.null_mean.toFixed(3) + " ± " + sh.null_std.toFixed(3) + " · empirical p " + sh.empirical_p.toFixed(3) + "</div></div>" +
+      '<div class="vcard"><div class="vh">Cluster stability (ARI)</div>' +
+        '<div class="vbar"><i style="width:' + (stab * 100).toFixed(0) + "%;background:" + (stab >= 0.5 ? "var(--good)" : "var(--warn)") + '"></i></div>' +
+        '<div class="vsmall">Mean adjusted Rand index <b style="color:var(--ink)">' + stab.toFixed(2) +
+        "</b> across subsampled re-clusterings (1.0 = identical niches every run).</div></div>";
+    document.getElementById("lvd-markers").innerHTML = (val.markers || []).map(function (m) {
+      var ev = m.corr != null
+        ? 'marker–composition correlation <b style="color:var(--ink)">' + m.corr.toFixed(2) + "</b>"
+        : "";
+      var top = (m.top || []).length ? '<div class="chips" style="margin-top:8px">' +
+        m.top.slice(0, 6).map(function (x) { return '<span class="chip">' + esc(x) + "</span>"; }).join("") + "</div>" : "";
+      return '<div class="vcard"><div class="mk"><span class="badge ' + (m.passed ? "ok" : "no") + '">' +
+        (m.passed ? "pass" : "check") + '</span><b>Niche ' + m.niche_id + "</b></div>" +
+        '<div class="vsmall">' + ev + "</div>" + top + "</div>";
+    }).join("");
+  } else {
+    ["le-lead", "ls-lead", "lvd-lead"].forEach(function (id) {
+      document.getElementById(id).textContent = "Engine graphs unavailable — rebuild lab_data.js with the engine env.";
+    });
   }
-  document.getElementById("lt-find").onclick = function(){ ltab("find"); };
-  document.getElementById("lt-test").onclick = function(){ ltab("test"); };
+
+  // ---- tabs ----
+  var VIEWS = { find:"lv-find", enrich:"lv-enrich", surv:"lv-surv", valid:"lv-valid", test:"lv-test" };
+  var TABS = { find:"lt-find", enrich:"lt-enrich", surv:"lt-surv", valid:"lt-valid", test:"lt-test" };
+  function ltab(which) {
+    Object.keys(VIEWS).forEach(function (k) {
+      document.getElementById(VIEWS[k]).classList.toggle("hide", k !== which);
+      document.getElementById(TABS[k]).classList.toggle("on", k === which);
+    });
+  }
+  Object.keys(TABS).forEach(function (k) { document.getElementById(TABS[k]).onclick = function () { ltab(k); }; });
 })();
 </script>
 </body>
