@@ -33,6 +33,8 @@ EXPECTED_TOOLS = {
     "characterize_niche",
     "find_prognostic_niches",
     "get_map_payload",
+    "describe_niches",
+    "correlate_niche_outcome",
 }
 
 

@@ -248,4 +248,6 @@ def test_server_registers_all_seven_tools():
         "characterize_niche",
         "find_prognostic_niches",
         "get_map_payload",
+        "describe_niches",
+        "correlate_niche_outcome",
     }
