@@ -6,6 +6,10 @@ Built for the Owkin Rewiring Biology Hackathon. Validated on the Basel breast ca
 
 An AI reading a tumor sees a composition vector. A pathologist sees a picture. Two patients can have identical cell-type proportions and opposite outcomes, and the only thing that separates them is where the cells sit. Locale supplies the map. More importantly, it supplies the limits of the map: the failure mode that destroys an AI Scientist in a regulated setting is not a missed finding, it is a confident report of a finding that is not there. Locale is built so that its refusals are as legible as its results.
 
+![Basel cores at recovered coordinates, coloured by major class](docs/figures/cores_spatial.png)
+
+*Four cores from the cohort, every cell drawn at its recovered coordinate and coloured by major class (tumor red, stroma green, immune blue, endothelial purple). The leftmost core is 97% tumor and shows genuine tissue nests and voids; the rightmost is 32% tumor and shows immune and tumor cells separating into compartments. A wrong coordinate join would produce uniform confetti in every panel. This is the geography that a composition vector cannot see, recovered from segmentation masks and verified by exact per-core cell-count agreement.*
+
 ### Three tests, three passes
 
 | Test | What it checks | Result |

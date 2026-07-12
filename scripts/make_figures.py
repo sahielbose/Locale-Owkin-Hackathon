@@ -38,9 +38,18 @@ MAJOR_ORDER = ["immune", "endothelial", "stroma", "tumor"]
 MAJOR_COLOR = {
     "immune": "#2E86C1",
     "endothelial": "#8E44AD",
-    "stroma": "#E59866",
+    "stroma": "#27AE60",
     "tumor": "#C0392B",
 }
+
+# Four cores that span the tumor-fraction range, from homogeneous (nests) to
+# compartmentalised, used for the coordinate-validation hero figure.
+HERO_CORES = [
+    "BaselTMA_SP43_168_X10Y5",
+    "BaselTMA_SP42_127_X2Y8",
+    "BaselTMA_SP43_108_X13Y8",
+    "BaselTMA_SP43_144_X15Y1",
+]
 
 plt.rcParams.update(
     {
@@ -229,34 +238,32 @@ def fig_km_niche7(a: ad.AnnData) -> None:
 
 
 def fig_cores_spatial(a: ad.AnnData) -> None:
-    """Figure 2: example cores plotted at recovered coordinates, coloured by major
-    class, spanning tumor fraction from homogeneous to compartmentalised."""
+    """Coordinate-validation hero: four Basel cores plotted at their recovered
+    coordinates and coloured by major class, spanning tumor fraction from
+    homogeneous (nests) to compartmentalised. A correct mask-to-cell join produces
+    tissue morphology; a scrambled join would produce uniform confetti."""
     obs = a.obs
     xy = np.asarray(a.obsm["spatial"], dtype=float)
-    frac = obs.groupby("core", observed=True).apply(
-        lambda d: (d["major"] == "tumor").mean()
-    )
-    counts = obs["core"].value_counts()
-    big = counts[counts > 1500].index
-    frac = frac[frac.index.isin(big)].sort_values()
-    picks = [frac.index[0], frac.index[len(frac) // 3], frac.index[2 * len(frac) // 3], frac.index[-1]]
-    fig, axes = plt.subplots(1, 4, figsize=(16, 4.4))
-    core_arr = obs["core"].to_numpy()
+    core_arr = obs["core"].astype(str).to_numpy()
     maj_arr = obs["major"].astype(str).to_numpy()
-    for ax, core in zip(axes, picks):
+    order = ["tumor", "stroma", "immune", "endothelial"]  # legend + z-order
+    fig, axes = plt.subplots(1, 4, figsize=(16, 4.6))
+    for ax, core in zip(axes, HERO_CORES):
         m = core_arr == core
-        for cls in MAJOR_ORDER:
+        pct = int(round((maj_arr[m] == "tumor").mean() * 100))
+        for cls in order:
             mm = m & (maj_arr == cls)
             ax.scatter(xy[mm, 0], xy[mm, 1], s=2, c=MAJOR_COLOR[cls], label=cls)
-        ax.set_title(f"{int(frac[core] * 100)}% tumor", fontsize=11)
+        ax.set_title(f"{core}\n{int(m.sum()):,} cells, {pct}% tumor", fontsize=9)
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_aspect("equal")
-    axes[0].legend(markerscale=4, loc="upper left", fontsize=8, frameon=False)
+    axes[0].legend(markerscale=4, loc="upper right", fontsize=8, frameon=False)
     fig.suptitle(
-        "Recovered coordinates for four cores, coloured by major class "
-        "(left homogeneous, right compartmentalised)",
-        y=1.02,
+        "Basel cores at recovered coordinates, coloured by major class. "
+        "A correct join shows tissue nests and voids; a scrambled join would be uniform confetti.",
+        y=1.03,
+        fontsize=12,
     )
     _save(fig, "cores_spatial.png")
 
