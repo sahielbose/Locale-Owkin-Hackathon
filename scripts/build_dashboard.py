@@ -19,9 +19,9 @@ from pathlib import Path
 
 import anndata as ad
 
-from src.locale.engine import characterize, enrichment, graph, niches, outcome
-from src.locale.mcp_server import interpret
-from src.locale.viz.payload import build_map_payload
+from src.localespatial.engine import characterize, enrichment, graph, niches, outcome
+from src.localespatial.mcp_server import interpret
+from src.localespatial.viz.payload import build_map_payload
 
 APP_DIR = Path(__file__).resolve().parents[1] / "src" / "locale" / "viz" / "app"
 

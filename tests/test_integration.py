@@ -16,8 +16,8 @@ from pathlib import Path
 import pytest
 from mcp.shared.memory import create_connected_server_and_client_session
 
-from src.locale.mcp_server import server, tools
-from src.locale.schema import EnrichmentResult, MapPayload, Niche, SampleRecord
+from src.localespatial.mcp_server import server, tools
+from src.localespatial.schema import EnrichmentResult, MapPayload, Niche, SampleRecord
 
 MOCK_PATH = Path(__file__).resolve().parents[1] / "data" / "mock.h5ad"
 

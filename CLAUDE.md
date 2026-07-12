@@ -11,11 +11,11 @@ Track being targeted: Best AI Scientist MCP.
 ## Team and parallelism (read this first)
 
 3-person team, three lanes that build in parallel:
-- Lane A (data + analysis engine): `src/locale/data/` and `src/locale/engine/`. Critical path, needs biology judgment.
-- Lane B (MCP server): `src/locale/mcp_server/`.
-- Lane C (visualization): `src/locale/viz/`.
+- Lane A (data + analysis engine): `src/localespatial/data/` and `src/localespatial/engine/`. Critical path, needs biology judgment.
+- Lane B (MCP server): `src/localespatial/mcp_server/`.
+- Lane C (visualization): `src/localespatial/viz/`.
 
-The linchpin that lets the three lanes work independently is the shared data contract in `src/locale/schema.py` plus a committed tiny `data/mock.h5ad`. Lanes B and C build against the schema + mock data; Lane A produces the real data and analysis; everything integrates through the schema objects. **Never change a schema field without telling the team.**
+The linchpin that lets the three lanes work independently is the shared data contract in `src/localespatial/schema.py` plus a committed tiny `data/mock.h5ad`. Lanes B and C build against the schema + mock data; Lane A produces the real data and analysis; everything integrates through the schema objects. **Never change a schema field without telling the team.**
 
 ## Dataset (CHANGED from MOSAIC, important)
 
@@ -42,7 +42,7 @@ Data-not-in-git rules (enforce these):
 
 ## The canonical AnnData object (Lane A produces this -> `data/locale.h5ad`)
 
-Every downstream component reads this. `src/locale/data/build_anndata.py` builds it from the extracted CSVs.
+Every downstream component reads this. `src/localespatial/data/build_anndata.py` builds it from the extracted CSVs.
 
 ```
 adata.X                  float32 [n_cells x 35]   arcsinh(cofactor=5) marker intensities, z-scored per marker
@@ -61,7 +61,7 @@ adata.uns['markers']     list[str]
 
 Preprocessing in `build_anndata.py`: arcsinh transform (cofactor 5), optional clip at 99th percentile, z-score per marker. Join cell-type labels and patient survival/clinical onto the cells. Set `obsm['spatial']` from the coordinate columns.
 
-## The shared data contract (`src/locale/schema.py`, Pydantic v2)
+## The shared data contract (`src/localespatial/schema.py`, Pydantic v2)
 
 This is THE coordination artifact. Implement exactly this.
 
@@ -131,7 +131,7 @@ locale/
   scripts/
     download_data.py       # remotezip: list + extract only needed files
     make_mock.py           # generate committable data/mock.h5ad
-  src/locale/
+  src/localespatial/
     __init__.py
     schema.py              # shared data contract (above)
     data/build_anndata.py  # CSVs -> canonical AnnData -> data/locale.h5ad
@@ -180,9 +180,9 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 python scripts/make_mock.py               # writes data/mock.h5ad (committed)
 python scripts/download_data.py           # lists the zip, extracts needed CSVs to data/raw/ (run once)
-python -m src.locale.data.build_anndata   # builds data/locale.h5ad from data/raw/
+python -m src.localespatial.data.build_anndata   # builds data/locale.h5ad from data/raw/
 pytest -q                                 # schema + mock checks
-python -m src.locale.mcp_server.server    # run the MCP server
+python -m src.localespatial.mcp_server.server    # run the MCP server
 ```
 
 ## Status

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import anndata as ad
 
-from src.locale.engine.groundtruth import community_ari
+from src.localespatial.engine.groundtruth import community_ari
 
 DATA = Path(__file__).resolve().parents[1] / "data"
 

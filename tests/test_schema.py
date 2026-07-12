@@ -10,7 +10,7 @@ import anndata as ad
 import numpy as np
 import pytest
 
-from src.locale.schema import (
+from src.localespatial.schema import (
     EnrichmentResult,
     KMCurve,
     MapPayload,

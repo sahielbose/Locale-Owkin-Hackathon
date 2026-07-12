@@ -13,17 +13,17 @@ import anndata as ad
 import numpy as np
 import pytest
 
-from src.locale.engine.characterize import characterize_niche
-from src.locale.engine.enrichment import compute_enrichment
-from src.locale.engine.graph import build_spatial_graph, cross_image_edges
-from src.locale.engine.niches import find_niches
-from src.locale.engine.outcome import niche_outcome, rank_prognostic_niches
-from src.locale.engine.validate import (
+from src.localespatial.engine.characterize import characterize_niche
+from src.localespatial.engine.enrichment import compute_enrichment
+from src.localespatial.engine.graph import build_spatial_graph, cross_image_edges
+from src.localespatial.engine.niches import find_niches
+from src.localespatial.engine.outcome import niche_outcome, rank_prognostic_niches
+from src.localespatial.engine.validate import (
     marker_validation,
     shuffle_negative_control,
     stability_ari,
 )
-from src.locale.schema import EnrichmentResult, Niche, Prognostic
+from src.localespatial.schema import EnrichmentResult, Niche, Prognostic
 
 MOCK_PATH = Path(__file__).resolve().parents[1] / "data" / "mock.h5ad"
 N_NICHES = 6

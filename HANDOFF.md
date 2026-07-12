@@ -31,15 +31,15 @@ detection is k-means on neighborhood composition).
 ## Run the pieces
 
 ```bash
-python -m src.locale.mcp_server.server     # MCP server on http://127.0.0.1:8000/mcp
-python -m src.locale.viz.payload && python scripts/build_dashboard.py   # refresh visuals
-open src/locale/viz/app/dashboard.html
+python -m src.localespatial.mcp_server.server     # MCP server on http://127.0.0.1:8000/mcp
+python -m src.localespatial.viz.payload && python scripts/build_dashboard.py   # refresh visuals
+open src/localespatial/viz/app/dashboard.html
 ```
 
 To run on the REAL cohort instead of the mock:
 
 ```bash
-LOCALE_DATA=data/locale.h5ad python -m src.locale.mcp_server.server
+LOCALE_DATA=data/locale.h5ad python -m src.localespatial.mcp_server.server
 ```
 
 To demo in Claude / K Pro as a remote custom connector:
@@ -50,13 +50,13 @@ cloudflared tunnel --url http://127.0.0.1:8000     # gives an https URL; connect
 ```
 
 Then Claude Settings -> Connectors -> Add custom connector -> name `Locale`, paste
-`https://<tunnel>/mcp`. Full details in `src/locale/mcp_server/README.md`.
+`https://<tunnel>/mcp`. Full details in `src/localespatial/mcp_server/README.md`.
 
 ## What is left
 
 - Lane A: build the real `data/locale.h5ad`. Run `scripts/download_data.py`
   (confirm the internal filenames against the printed listing), fill the
-  column-name TODOs in `src/locale/data/build_anndata.py`, then run the validation
+  column-name TODOs in `src/localespatial/data/build_anndata.py`, then run the validation
   checks (shuffle control, ARI stability, marker check) and lock the demo
   cohort/niche. Share `locale.h5ad` and the extracted CSVs on the Drive, never git.
 - Lane B: optional bearer-token auth for the remote connector; set a real
@@ -69,7 +69,7 @@ Then Claude Settings -> Connectors -> Add custom connector -> name `Locale`, pas
 
 ## Gotchas
 
-- Do NOT change any field in `src/locale/schema.py` without telling the whole team.
+- Do NOT change any field in `src/localespatial/schema.py` without telling the whole team.
   It is the shared contract all three lanes depend on. See the proposal below.
 - Data is not in git. Only `data/mock.h5ad` is committed. `data/locale.h5ad` and
   raw CSVs are shared out of band on the Drive.
@@ -78,12 +78,12 @@ Then Claude Settings -> Connectors -> Add custom connector -> name `Locale`, pas
 
 ## Proposed schema change (needs team sign-off, DO NOT apply unilaterally)
 
-`src/locale/mcp_server/interpret.py` already produces both a niche `name` AND a
+`src/localespatial/mcp_server/interpret.py` already produces both a niche `name` AND a
 one-line `description`, but the `Niche` schema has no field to carry the
 description, so it is currently computed and then dropped before reaching K Pro.
 
 Proposal: add one optional, backwards-compatible field to `Niche` in
-`src/locale/schema.py`:
+`src/localespatial/schema.py`:
 
 ```python
 class Niche(BaseModel):

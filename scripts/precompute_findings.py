@@ -23,7 +23,7 @@ from pathlib import Path
 import anndata as ad
 import pandas as pd
 
-from src.locale.engine.outcome import cohort_survival
+from src.localespatial.engine.outcome import cohort_survival
 
 DATA = Path(__file__).resolve().parents[1] / "data"
 OUT = Path(__file__).resolve().parents[1] / "demo" / "findings.json"

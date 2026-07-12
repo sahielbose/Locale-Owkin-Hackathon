@@ -24,8 +24,8 @@ import squidpy as sq
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.metrics import adjusted_rand_score
 
-from src.locale.engine.niches import find_niches, niche_features
-from src.locale.metaclusters import METACLUSTERS
+from src.localespatial.engine.niches import find_niches, niche_features
+from src.localespatial.metaclusters import METACLUSTERS
 
 DATA = Path(__file__).resolve().parents[1] / "data"
 

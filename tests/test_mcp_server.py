@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pytest
 
-from src.locale.mcp_server import interpret, server, tools
-from src.locale.schema import (
+from src.localespatial.mcp_server import interpret, server, tools
+from src.localespatial.schema import (
     EnrichmentResult,
     MapPayload,
     Niche,

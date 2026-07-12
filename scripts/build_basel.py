@@ -25,7 +25,7 @@ import numpy as np
 import pandas as pd
 import squidpy as sq
 
-from src.locale.metaclusters import annotate
+from src.localespatial.metaclusters import annotate
 
 DATA = Path(__file__).resolve().parents[1] / "data"
 OUT = DATA / "basel_nomarkers.h5ad"
