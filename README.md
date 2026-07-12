@@ -107,6 +107,22 @@ We read both archives (48 GB combined) by HTTP range request, without downloadin
 
 About 5 GB was transferred out of 48 GB. The rest is OME-TIFF image stacks and MATLAB sessions the analysis does not use. See [`scripts/download_data.py`](scripts/download_data.py).
 
+### 4.1 Running on MOSAIC Window (the hackathon dataset)
+
+We built and validated Locale on the Jackson 2020 Basel cohort because it is fully public and does not sit behind controlled access. Nothing in the engine is specific to that cohort: Locale reasons over any spatial single-cell object with a cell type, an `(x, y)` position, and a sample id, optionally with patient survival. That is exactly the shape of the hackathon's [MOSAIC Window](https://www.mosaic-research.com/mosaic-window) spatial-transcriptomics tier (60 patients across Glioblastoma, Bladder, Ovarian, DLBCL, and Mesothelioma, delivered through the EGA).
+
+[`scripts/load_mosaic.py`](scripts/load_mosaic.py) maps a MOSAIC Window export into Locale's schema and, optionally, runs the whole engine on it in one command:
+
+```
+# AnnData export straight from the EGA
+python scripts/load_mosaic.py mosaic_window_spatial.h5ad -o data/mosaic.h5ad --analyze
+
+# or a cell table plus a clinical table for survival
+python scripts/load_mosaic.py cells.parquet --clinical clinical.csv -o data/mosaic.h5ad --analyze
+```
+
+Column names are auto-detected across the layouts spatial-transcriptomics exports use (AnnData, Visium, Xenium, CosMx); `--cell-type-col`, `--x-col`, `--y-col`, `--image-col`, `--patient-col`, `--os-month-col`, and `--os-event-col` override any that a given release names differently. The canonical `.h5ad` it writes is consumed unchanged by every entrypoint: the MCP server (`LOCALE_DATA=data/mosaic.h5ad python -m localespatial.mcp_server.server`), the live report (`scripts/serve.py`), and the web upload. The honesty layer travels with the data: on a cohort too small to support the risk model, the verdict comes back `not evaluable` rather than a fabricated hazard ratio.
+
 ## 5. The coordinate problem
 
 The released marker table `SC_dat.csv` is in long format with five columns (`core, CellId, id, channel, mc_counts`) and one row per cell-channel pair. There is no x, no y, and no coordinate file anywhere in the archive. The coordinates existed in the authors' MATLAB pipeline but were never exported in tabular form.
