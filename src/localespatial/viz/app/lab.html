@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Locale &middot; engine &amp; tests</title>
+<style>
+  :root { --bg:#05070b; --panel:#0d1017; --card:#12151d; --ink:#eef1f6; --muted:#9aa4b2;
+    --border:#232935; --accent:#6ea8fe; --good:#4ade80; --bad:#f0776a; --warn:#f5c451; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); color:var(--ink); -webkit-font-smoothing:antialiased;
+    font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  a { color:var(--accent); text-decoration:none; } a:hover { text-decoration:underline; }
+  header { position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:16px;
+    padding:15px 26px; border-bottom:1px solid var(--border); background:#05070bee; backdrop-filter:blur(8px); }
+  header h1 { font-size:15px; font-weight:650; letter-spacing:.3px; }
+  header .sub { color:var(--muted); font-size:12px; }
+  header .spacer { flex:1; }
+  .tabs { display:flex; gap:6px; }
+  .tabs button { background:transparent; color:var(--muted); border:1px solid var(--border);
+    border-radius:8px; padding:6px 16px; cursor:pointer; font-size:13px; }
+  .tabs button.on { background:var(--accent); color:#06101f; font-weight:650; border-color:var(--accent); }
+  main { max-width:1180px; margin:0 auto; padding:24px 26px 60px; }
+  .lead { color:var(--muted); font-size:13px; max-width:70ch; margin-bottom:20px; }
+  .lead b { color:var(--ink); }
+
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:24px; }
+  .stat { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+  .stat .v { font-size:24px; font-weight:700; letter-spacing:.3px; }
+  .stat .k { color:var(--muted); font-size:11.5px; margin-top:2px; }
+  .stat .sub { color:var(--muted); font-size:10.5px; margin-top:4px; opacity:.8; }
+
+  h2.sec { font-size:12px; text-transform:uppercase; letter-spacing:.09em; color:var(--muted);
+    margin:26px 0 14px; font-weight:600; }
+
+  /* forest plot */
+  .forest { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:18px; overflow-x:auto; }
+  .frow { display:grid; grid-template-columns:210px 1fr 120px; align-items:center; gap:12px; height:34px; }
+  .frow .fname { font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .frow .fstat { font-size:11.5px; color:var(--muted); text-align:right; font-variant-numeric:tabular-nums; }
+  .faxis { display:grid; grid-template-columns:210px 1fr 120px; gap:12px; color:var(--muted);
+    font-size:10.5px; margin-top:8px; }
+  .faxis .ticks { position:relative; height:14px; }
+  .faxis .ticks span { position:absolute; transform:translateX(-50%); }
+
+  /* niche cards */
+  .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:13px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:14px 15px; }
+  .card .top { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  .card .nm { font-size:14px; font-weight:650; }
+  .card .hr { font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; }
+  .card .meta { color:var(--muted); font-size:11px; margin-top:2px; }
+  .compbar { display:flex; height:7px; border-radius:4px; overflow:hidden; margin:11px 0 8px; background:#0b0d11; }
+  .compbar span { height:100%; }
+  .chips { display:flex; flex-wrap:wrap; gap:5px; }
+  .chip { font-size:10.5px; color:var(--muted); background:#0b0d11; border:1px solid var(--border);
+    border-radius:6px; padding:1px 7px; }
+  .clegend { display:flex; gap:14px; margin:6px 0 0; color:var(--muted); font-size:11px; }
+  .clegend i { display:inline-block; width:10px; height:10px; border-radius:3px; vertical-align:middle; margin-right:5px; }
+
+  /* tests */
+  .tfile { margin-bottom:18px; }
+  .tfile h3 { font-size:13px; font-weight:650; margin-bottom:9px; display:flex; align-items:center; gap:9px; }
+  .tfile h3 .count { color:var(--muted); font-weight:400; font-size:12px; }
+  .trow { display:grid; grid-template-columns:20px 1fr 74px; align-items:center; gap:10px;
+    padding:7px 12px; border:1px solid var(--border); border-radius:9px; background:var(--card); margin-bottom:5px; }
+  .trow .dot { width:9px; height:9px; border-radius:50%; }
+  .trow .tn { font-size:12.5px; }
+  .trow .tn small { color:var(--muted); font-family:ui-monospace,Menlo,monospace; font-size:10.5px; }
+  .trow .ms { text-align:right; color:var(--muted); font-size:11px; font-variant-numeric:tabular-nums; }
+  .pass { color:var(--good); } .fail { color:var(--bad); } .skip { color:var(--warn); }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Locale</h1>
+  <span class="sub">engine &amp; tests</span>
+  <span class="spacer"></span>
+  <div class="tabs">
+    <button id="tab-find" class="on">Findings</button>
+    <button id="tab-test">Tests</button>
+  </div>
+  <a href="index.html">&larr; tissue zoom</a>
+</header>
+<main>
+  <section id="view-find">
+    <div class="lead" id="find-lead"></div>
+    <div class="stats" id="cohort"></div>
+    <h2 class="sec">Niche &rarr; survival (Cox hazard ratios, 95% CI)</h2>
+    <div class="forest" id="forest"></div>
+    <h2 class="sec">The niches</h2>
+    <div class="clegend"><span><i style="background:#d9544d"></i>tumor</span>
+      <span><i style="background:#4a90d9"></i>immune</span>
+      <span><i style="background:#5bbd6b"></i>stroma</span>
+      <span><i style="background:#9a7fd1"></i>other</span></div>
+    <div class="cards" id="niche-cards" style="margin-top:12px"></div>
+  </section>
+
+  <section id="view-test" class="hidden">
+    <div class="lead" id="test-lead"></div>
+    <div class="stats" id="test-stats"></div>
+    <div id="test-groups"></div>
+  </section>
+</main>
+
+<script src="lab_data.js"></script>
+<script>
+(function () {
+  "use strict";
+  var LAB = window.LOCALE_LAB;
+  if (!LAB) { document.getElementById("find-lead").textContent = "lab_data.js not loaded — run scripts to regenerate."; return; }
+  var COMP = { tumor:"#d9544d", immune:"#4a90d9", stroma:"#5bbd6b", other:"#9a7fd1", vascular:"#e0a458" };
+  function esc(s){ var d=document.createElement("div"); d.textContent=String(s); return d.innerHTML; }
+  function compColor(k){ return COMP[k] || "#9a7fd1"; }
+
+  // ---------- Findings ----------
+  var f = LAB.findings, c = f.cohort;
+  var niches = Object.keys(f.niches).map(function (k) { var n = f.niches[k]; n._id = k; return n; });
+  // rank by strongest signal: smallest FDR q, then distance of HR from 1
+  niches.sort(function (a, b) { return (a.q_fdr - b.q_fdr) || (Math.abs(Math.log(b.hazard_ratio)) - Math.abs(Math.log(a.hazard_ratio))); });
+
+  document.getElementById("find-lead").innerHTML =
+    "Real output of the Locale engine on the <b>Basel breast-cancer cohort</b> (Jackson &amp; Fischer 2020). " +
+    "Spatial niches are detected across cores, then each niche's per-patient abundance is tested against overall " +
+    "survival with a Cox model. Hypotheses were <b>pre-registered</b> and p-values are corrected for testing " +
+    c.n_hypotheses_tested + " niches (Benjamini-Hochberg FDR + selection-aware).";
+
+  var stats = [
+    ["n_patients", c.n_patients, "patients", ""],
+    ["n_events", c.n_events, "deaths (events)", ""],
+    ["niches", c.n_hypotheses_tested, "niches tested", "pre-registered"],
+    ["power", (c.power*100).toFixed(0)+"%", "statistical power", "at α="+c.alpha],
+    ["mdhr", c.min_detectable_hr.toFixed(2), "min detectable HR", "given this cohort"],
+    ["p", c.observed_best_p.toFixed(3), "best raw p", "selection-aware "+c.p_selection_aware.toFixed(2)]
+  ];
+  document.getElementById("cohort").innerHTML = stats.map(function (s) {
+    return '<div class="stat"><div class="v">' + s[1] + '</div><div class="k">' + s[2] + '</div>' +
+      (s[3] ? '<div class="sub">' + s[3] + '</div>' : '') + '</div>';
+  }).join("");
+
+  // forest plot (log axis 0.5 .. 2, line at HR=1)
+  var LO = 0.5, HI = 2.0, lgLO = Math.log(LO), lgHI = Math.log(HI);
+  function xpct(hr) { return Math.max(0, Math.min(100, (Math.log(hr) - lgLO) / (lgHI - lgLO) * 100)); }
+  var forest = niches.map(function (n) {
+    var col = n.hazard_ratio >= 1 ? "var(--bad)" : "var(--good)";
+    var lo = xpct(n.ci_95[0]), hi = xpct(n.ci_95[1]), pt = xpct(n.hazard_ratio);
+    var sig = n.q_fdr < 0.05 ? " ●" : "";
+    var bar = '<div style="position:relative;height:22px">' +
+      '<div style="position:absolute;left:' + xpct(1) + '%;top:0;bottom:0;width:1px;background:#3a4150"></div>' +
+      '<div style="position:absolute;top:10px;left:' + lo + '%;width:' + (hi - lo) + '%;height:2px;background:' + col + ';opacity:.5"></div>' +
+      '<div style="position:absolute;top:5px;left:' + pt + '%;width:11px;height:11px;border-radius:50%;background:' + col + ';transform:translateX(-50%)"></div>' +
+      '</div>';
+    return '<div class="frow"><div class="fname" title="' + esc(n.name) + '">' + esc(n.name) + sig + '</div>' +
+      bar + '<div class="fstat">HR ' + n.hazard_ratio.toFixed(2) + ' · q ' + n.q_fdr.toFixed(2) + '</div></div>';
+  }).join("");
+  document.getElementById("forest").innerHTML = forest +
+    '<div class="faxis"><div>← better survival · worse →</div><div class="ticks">' +
+    '<span style="left:' + xpct(0.5) + '%">0.5</span><span style="left:' + xpct(1) + '%">1.0</span>' +
+    '<span style="left:' + xpct(1.5) + '%">1.5</span><span style="left:' + xpct(2) + '%">2.0</span></div><div></div></div>';
+
+  document.getElementById("niche-cards").innerHTML = niches.map(function (n) {
+    var col = n.hazard_ratio >= 1 ? "var(--bad)" : "var(--good)";
+    var comp = n.composition_major || {};
+    var bar = Object.keys(comp).sort(function (a, b) { return comp[b] - comp[a]; }).map(function (k) {
+      return '<span style="width:' + (comp[k] * 100).toFixed(1) + '%;background:' + compColor(k) + '" title="' + esc(k) + ' ' + (comp[k] * 100).toFixed(0) + '%"></span>';
+    }).join("");
+    var chips = (n.top_metaclusters || []).map(function (m) { return '<span class="chip">' + esc(m) + '</span>'; }).join("");
+    return '<div class="card"><div class="top"><span class="nm">' + esc(n.name) + '</span>' +
+      '<span class="hr" style="color:' + col + '">HR ' + n.hazard_ratio.toFixed(2) + '</span></div>' +
+      '<div class="meta">95% CI ' + n.ci_95[0].toFixed(2) + '–' + n.ci_95[1].toFixed(2) +
+      ' · p ' + n.p_raw.toFixed(3) + ' · q ' + n.q_fdr.toFixed(2) + '</div>' +
+      '<div class="compbar">' + bar + '</div>' +
+      '<div class="meta">' + (n.n_cells ? n.n_cells.toLocaleString() + ' cells · ' + n.n_cores + ' cores' : '') + '</div>' +
+      '<div class="chips" style="margin-top:8px">' + chips + '</div></div>';
+  }).join("");
+
+  // ---------- Tests ----------
+  var m = LAB.meta, tests = LAB.tests;
+  document.getElementById("test-lead").innerHTML =
+    "The suite that guards the engine and the MCP server. Every function is checked against the committed " +
+    "<b>mock cohort</b> and the shared schema, so the analysis can't silently drift. Run with <code>pytest -q</code>.";
+  var tstats = [
+    [m.passed + "/" + m.total, "passing", m.failed ? m.failed + " failing" : "all green"],
+    [m.duration_s + "s", "wall time", ""],
+    [m.files.length, "test modules", ""],
+    [m.skipped || 0, "skipped", ""]
+  ];
+  document.getElementById("test-stats").innerHTML = tstats.map(function (s, i) {
+    var cls = i === 0 && !m.failed ? "pass" : "";
+    return '<div class="stat"><div class="v ' + cls + '">' + s[0] + '</div><div class="k">' + s[1] + '</div>' +
+      (s[2] ? '<div class="sub">' + s[2] + '</div>' : '') + '</div>';
+  }).join("");
+
+  var byFile = {};
+  tests.forEach(function (t) { (byFile[t.file] = byFile[t.file] || []).push(t); });
+  document.getElementById("test-groups").innerHTML = m.files.map(function (file) {
+    var rows = (byFile[file] || []).map(function (t) {
+      var cls = t.outcome === "passed" ? "pass" : t.outcome === "failed" ? "fail" : "skip";
+      var col = t.outcome === "passed" ? "var(--good)" : t.outcome === "failed" ? "var(--bad)" : "var(--warn)";
+      return '<div class="trow"><span class="dot" style="background:' + col + '"></span>' +
+        '<span class="tn">' + esc(t.label) + ' <small>' + esc(t.name) + '</small></span>' +
+        '<span class="ms">' + t.ms + ' ms</span></div>';
+    }).join("");
+    var n = (byFile[file] || []).length;
+    var pass = (byFile[file] || []).filter(function (t) { return t.outcome === "passed"; }).length;
+    return '<div class="tfile"><h3>' + esc(file) + ' <span class="count">' + pass + '/' + n + ' passing</span></h3>' + rows + '</div>';
+  }).join("");
+
+  // tabs
+  function show(which) {
+    document.getElementById("view-find").classList.toggle("hidden", which !== "find");
+    document.getElementById("view-test").classList.toggle("hidden", which !== "test");
+    document.getElementById("tab-find").classList.toggle("on", which === "find");
+    document.getElementById("tab-test").classList.toggle("on", which === "test");
+  }
+  document.getElementById("tab-find").onclick = function () { show("find"); };
+  document.getElementById("tab-test").onclick = function () { show("test"); };
+  show("find");
+})();
+</script>
+</body>
+</html>
