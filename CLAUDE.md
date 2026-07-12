@@ -1,6 +1,6 @@
 # CLAUDE.md: Locale
 
-Context for Claude Code. This is the build source of truth. The pitch/vision lives in `Locale.md`; when the two disagree, this file wins (in particular, the dataset changed, see below).
+Context for Claude Code. This is the build source of truth. The pitch/vision lives in `docs/vision.md`; when the two disagree, this file wins (in particular, the dataset changed, see below).
 
 ## What we are building
 
