@@ -9,7 +9,7 @@ loaded read-only.
 The name **"tumor immune-excluded"** for niche 7 is **overreaching and should be
 renamed to "tumor-rich, immune-poor."** Niche 7 is genuinely a tumor-dominated,
 immune-sparse *cell-level* neighborhood, but the *core-level* claim smuggled into the
-word "excluded" — that immune cells are present but locked out — is not supported. A
+word "excluded" - that immune cells are present but locked out - is not supported. A
 meaningful fraction of niche-7-heavy cores are true **immune deserts** (no immune-rich
 neighborhoods at all), and across the rest the excluded-vs-desert distinction is a
 **smooth continuum with no bimodal break**, not a clean phenotype.
@@ -32,13 +32,13 @@ and core-level immune-major fraction. A core is **immune-excluded** if it is nic
 *and* carries niche-1 elsewhere (immune present but compartmentalized); it is an
 **immune desert** if it is niche-7-heavy and carries essentially no niche 1 (immune
 absent). "Excluded" and "desert" both produce ~79%-tumor/~4%-immune niche-7 cells, so
-the cell-level label alone cannot distinguish them — that is exactly the ambiguity being
+the cell-level label alone cannot distinguish them - that is exactly the ambiguity being
 tested.
 
 **Primary threshold for "niche-7-heavy": niche-7 cells ≥ 10% of the core → 42 cores.**
 (Robustness at ≥20% → 37 cores; ≥5% → 48 cores. All give the same story.)
 
-## Result 1 — the excluded/desert split has no stable boundary
+## Result 1 - the excluded/desert split has no stable boundary
 
 There is no natural threshold for "carries niche 1," so I swept several. The split slides
 continuously with wherever the line is drawn (frac7 ≥ 10%, 42 cores):
@@ -52,10 +52,10 @@ continuously with wherever the line is drawn (frac7 ≥ 10%, 42 cores):
 
 Robustness at frac7 ≥ 20% (37 cores) is essentially identical: 89% / 70% / 57% / 22%
 excluded. **A phenotype that flips from 90%-excluded to 81%-desert as you nudge the
-presence threshold is not a clean dichotomy — the threshold-sensitivity itself is the
+presence threshold is not a clean dichotomy - the threshold-sensitivity itself is the
 signature of a continuum.**
 
-## Result 2 — the distribution is a continuum, not bimodal
+## Result 2 - the distribution is a continuum, not bimodal
 
 Sorted niche-1 fraction across the 42 niche-7-heavy cores:
 
@@ -73,7 +73,7 @@ story: min 0.85%, median 6.75%, max 35%, unimodal and right-skewed with no gap.
 **There is no bimodal valley separating an "excluded" cluster from a "desert" cluster.**
 Cores fill the whole range from zero immune to immune-rich smoothly.
 
-## Result 3 — the deserts are real, not sampling artifacts
+## Result 3 - the deserts are real, not sampling artifacts
 
 The 4 cores with exactly zero niche-1 cells are **large and overwhelmingly tumor**, so
 their emptiness is a real biological absence, not a small-n fluke:
@@ -88,28 +88,28 @@ their emptiness is a real biological absence, not a small-n fluke:
 These are ~3,000-cell tumors that are 93–99% niche-7 with 1–2% immune and zero
 immune-rich neighborhoods. That is an **immune desert**, the biological opposite of
 "excluded" (which implies immune cells amassed at a border and held out). Calling these
-"immune-excluded" would be flatly wrong for at least ~10% of niche-7-heavy cores — and
+"immune-excluded" would be flatly wrong for at least ~10% of niche-7-heavy cores - and
 for 29–43% under any non-trivial presence threshold (≥10 cells / ≥1%).
 
 ## Verdict
 
-- **Excluded vs desert does not separate cleanly** — it is a continuum (Results 1 & 2).
-- **A meaningful fraction are genuine deserts, not excluded** — 10% (any-cell) up to
+- **Excluded vs desert does not separate cleanly** - it is a continuum (Results 1 & 2).
+- **A meaningful fraction are genuine deserts, not excluded** - 10% (any-cell) up to
   ~30–43% (≥10 cells / ≥1%) of niche-7-heavy cores, robust to the niche-7 threshold, and
   the extreme deserts are large real tumors (Result 3).
 
 By the decision rule (a meaningful desert fraction **and** a continuum rather than clean
 exclusion), **"immune-excluded" is a false/overreaching label.**
 
-## Recommendation (do NOT auto-apply — main thread should perform)
+## Recommendation (do NOT auto-apply - main thread should perform)
 
 **Rename niche 7 from "tumor immune-excluded" to "tumor-rich, immune-poor."**
 
-Reasoning — why a false label is dangerous here, not just imprecise:
+Reasoning - why a false label is dangerous here, not just imprecise:
 
 1. **It claims a mechanism the cell-level data cannot see.** "Excluded" (Chen & Mellman,
-   *Nature* 2017) is a specific spatial mechanism — immune cells present but barred from
-   the tumor bed — and is clinically distinct from "desert" (no immune cells), with
+   *Nature* 2017) is a specific spatial mechanism - immune cells present but barred from
+   the tumor bed - and is clinically distinct from "desert" (no immune cells), with
    different immunotherapy implications. Niche 7 is a *cell-level* neighborhood label;
    "excluded" is a *core/tumor-level* phenotype. You cannot infer the core phenotype from
    the cell label, and when we actually tested it, the core phenotype was a continuum that
@@ -119,7 +119,7 @@ Reasoning — why a false label is dangerous here, not just imprecise:
 2. **`characterize_niche` hands the name straight to K Pro, which reasons from it and
    cannot re-check it.** The downstream agent has no access to the per-core niche-1
    distribution; it sees the string "immune-excluded" and will treat exclusion as an
-   established fact — potentially reasoning toward mechanisms or therapy framings (e.g.
+   established fact - potentially reasoning toward mechanisms or therapy framings (e.g.
    TGF-β/stromal barrier, anti-PD-L1 rationale) that apply to exclusion but not to
    deserts. A wrong label doesn't just lose precision; it manufactures a false premise the
    next reasoner builds on. An accurate, deliberately modest name removes that failure
@@ -127,7 +127,7 @@ Reasoning — why a false label is dangerous here, not just imprecise:
 
 ## Future work (NOT done here; flagged only)
 
-Whether excluded-vs-desert is itself **prognostic** is a real, separate question — but
+Whether excluded-vs-desert is itself **prognostic** is a real, separate question - but
 testing it on Basel would be fishing, because Basel has already been used to define and
 name these niches. It would require pre-registration and evaluation on the untouched
 **Zurich cohort** (`Data_publication/ZurichTMA/`, ~70 patients). Not performed in this

@@ -98,7 +98,7 @@ project exists to prevent.
 1. **Precompute the demo path** (already done; regenerates `demo/findings.json`):
    `PYTHONPATH=. python scripts/precompute_findings.py`
 2. **Serve the real cohort:**
-   `LOCALE_DATA=data/basel_niched.h5ad python -m src.locale.mcp_server.server`
+   `LOCALE_DATA=data/basel_niched.h5ad python -m localespatial.mcp_server.server`
 3. **Expose it** (K Pro needs a public https URL):
    `cloudflared tunnel --url http://127.0.0.1:8000` -> your MCP URL is that + `/mcp`.
 4. **Sign up for K Pro Free** and add a custom connector pointing at that `/mcp` URL
