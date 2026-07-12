@@ -99,7 +99,13 @@ def _cards(findings: dict) -> list[dict]:
             "p_selection_aware": round(float(cohort["p_selection_aware"]), 3),
             "n_events": int(cohort["n_events"]),
             "min_detectable_hr": round(float(cohort["min_detectable_hr"]), 3),
-            "verdict": "supported" if q < alpha else "insufficient evidence",
+            # Same gate as engine.correlate_niche_outcome: q AND the global
+            # selection-aware p must both clear alpha, or the verdict is insufficient.
+            "verdict": (
+                "supported"
+                if q < alpha and float(cohort.get("p_selection_aware", 1.0)) < alpha
+                else "insufficient evidence"
+            ),
         }
         cards.append(
             {
