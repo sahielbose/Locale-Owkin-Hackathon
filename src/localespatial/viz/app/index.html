@@ -3,602 +3,181 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Locale tissue map</title>
+<title>Locale &middot; breast, from organ to cell</title>
 <style>
-  :root {
-    --bg: #0f1115; --panel: #171a21; --ink: #e8ebf0; --muted: #9aa4b2;
-    --border: #262b34; --accent: #6ea8fe;
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
-    font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  #app { display: grid; grid-template-columns: 1fr 300px; grid-template-rows: auto 1fr;
-    height: 100vh; }
-  header { grid-column: 1 / -1; display: flex; align-items: center; gap: 16px;
-    padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
-  header h1 { font-size: 15px; margin: 0; font-weight: 600; letter-spacing: .2px; }
-  header .meta { color: var(--muted); font-size: 12px; }
-  header .spacer { flex: 1; }
-  .toggle { display: inline-flex; border: 1px solid var(--border); border-radius: 8px;
-    overflow: hidden; }
-  .toggle button { background: transparent; color: var(--muted); border: 0;
-    padding: 6px 12px; cursor: pointer; font-size: 13px; }
-  .toggle button.active { background: var(--accent); color: #06101f; font-weight: 600; }
-  label.file { color: var(--muted); font-size: 12px; cursor: pointer; }
-  label.file input { display: none; }
-  #stage { position: relative; overflow: hidden; }
-  #deck-canvas, #canvas2d { position: absolute; inset: 0; width: 100%; height: 100%; }
-  #tooltip { position: absolute; pointer-events: none; background: #0b0d11ee;
-    border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px;
-    color: var(--ink); display: none; z-index: 5; white-space: nowrap; }
-  aside { border-left: 1px solid var(--border); background: var(--panel); padding: 14px 16px;
-    overflow: auto; }
-  aside h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .8px;
-    color: var(--muted); margin: 0 0 10px; }
-  .legend-item { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 13px; }
-  .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
-  .hint { color: var(--muted); font-size: 11px; margin-top: 14px; line-height: 1.5; }
-  #renderer-badge { font-size: 11px; color: var(--muted); }
-  #deck-canvas { transition: opacity .08s linear; }
-  #cell3d-layer { position: absolute; inset: 0; z-index: 4; pointer-events: none; opacity: 0;
-    transition: opacity .08s linear; }
-  #cell3d-canvas { width: 100%; height: 100%; display: block; }
-  #zoom-hud { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%);
-    z-index: 6; background: #0b0d11cc; border: 1px solid var(--border); border-radius: 20px;
-    padding: 6px 14px; font-size: 12px; color: var(--muted); display: none; white-space: nowrap; }
-  #zoom-hud b { color: var(--ink); }
-  .panel-tabs { display: flex; gap: 4px; margin-bottom: 12px; }
-  .panel-tabs button { flex: 1; background: transparent; color: var(--muted);
-    border: 1px solid var(--border); border-radius: 7px; padding: 5px 0; cursor: pointer;
-    font-size: 12px; }
-  .panel-tabs button.active { background: var(--accent); color: #06101f; font-weight: 600;
-    border-color: var(--accent); }
-  .panel-note { color: var(--muted); font-size: 11px; line-height: 1.5; margin-bottom: 10px; }
-  .ncard { border: 1px solid var(--border); border-radius: 9px; padding: 9px 10px;
-    margin-bottom: 8px; cursor: pointer; background: #12151c; transition: border-color .1s; }
-  .ncard:hover { border-color: var(--accent); }
-  .ncard.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-  .ncard .nhead { display: flex; align-items: center; gap: 7px; }
-  .ncard .dot { width: 11px; height: 11px; border-radius: 3px; flex: none; }
-  .ncard .nname { font-size: 12px; font-weight: 600; color: var(--ink); line-height: 1.25; }
-  .compbar { display: flex; height: 7px; border-radius: 4px; overflow: hidden; margin: 8px 0 6px; }
-  .compbar span { height: 100%; }
-  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
-  .chip { font-size: 10px; color: var(--muted); background: #0b0d11; border: 1px solid var(--border);
-    border-radius: 5px; padding: 1px 6px; }
-  .prog { font-size: 11px; color: var(--muted); margin-top: 7px; }
-  .prog b { color: var(--ink); }
-  .km { margin-top: 6px; }
-  .km-legend { display: flex; gap: 12px; font-size: 10px; color: var(--muted); margin-top: 3px; }
-  .km-legend i { display: inline-block; width: 10px; height: 2px; vertical-align: middle; margin-right: 4px; }
-  #backend-badge { font-size: 10px; color: var(--muted); margin-top: 12px; padding-top: 10px;
-    border-top: 1px solid var(--border); }
-  #backend-badge b { color: #4ade80; }
+  :root { --ink:#eef1f6; --muted:#9aa4b2; --panel:#10131a; --border:#2a2f3a; --accent:#6ea8fe; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html,body { height:100%; background:#05070b; color:var(--ink); overflow:hidden;
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased; }
+  #scene { position:fixed; inset:0; overflow:hidden; cursor:ns-resize; }
+  .layer { position:absolute; inset:0; background-position:center; background-size:cover;
+    background-repeat:no-repeat; transform-origin:center center; will-change:transform,opacity;
+    transition:transform .45s cubic-bezier(.22,.61,.36,1), opacity .45s ease; opacity:0;
+    backface-visibility:hidden; }
+  #vignette { position:fixed; inset:0; pointer-events:none; z-index:5;
+    box-shadow:inset 0 0 200px 60px rgba(5,7,11,.85); }
+
+  header { position:fixed; top:0; left:0; right:0; z-index:10; display:flex; align-items:center;
+    gap:14px; padding:16px 22px; background:linear-gradient(#05070bcc,#05070b00); }
+  header h1 { font-size:15px; font-weight:600; letter-spacing:.3px; }
+  header .sub { color:var(--muted); font-size:12px; }
+  header .spacer { flex:1; }
+  header a { color:var(--accent); font-size:12px; text-decoration:none; }
+  header a:hover { text-decoration:underline; }
+
+  #rail { position:fixed; left:22px; top:50%; transform:translateY(-50%); z-index:10;
+    display:flex; flex-direction:column; gap:0; }
+  #rail .stop { display:flex; align-items:center; gap:10px; height:46px; cursor:pointer; opacity:.5;
+    transition:opacity .3s; }
+  #rail .stop.on { opacity:1; }
+  #rail .tick { width:11px; height:11px; border-radius:50%; border:2px solid var(--muted);
+    background:transparent; flex:none; transition:all .3s; }
+  #rail .stop.on .tick { border-color:var(--accent); background:var(--accent);
+    box-shadow:0 0 12px var(--accent); }
+  #rail .lbl { font-size:11px; color:var(--muted); white-space:nowrap; letter-spacing:.2px; }
+  #rail .stop.on .lbl { color:var(--ink); font-weight:600; }
+  #rail .line { position:absolute; left:5px; top:8px; bottom:8px; width:1px; background:var(--border); z-index:-1; }
+
+  #caption { position:fixed; right:22px; bottom:26px; z-index:10; max-width:340px;
+    background:#0b0e14cc; border:1px solid var(--border); border-radius:12px; padding:14px 16px;
+    backdrop-filter:blur(8px); }
+  #caption .stage { font-size:11px; text-transform:uppercase; letter-spacing:1.2px; color:var(--accent); }
+  #caption .name { font-size:17px; font-weight:650; margin:3px 0 6px; }
+  #caption .desc { font-size:12.5px; color:var(--muted); line-height:1.55; }
+  #caption .scale { margin-top:11px; display:flex; align-items:center; gap:9px; }
+  #caption .bar { height:3px; width:110px; background:var(--ink); border-radius:2px; }
+  #caption .barlbl { font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; }
+
+  #hint { position:fixed; left:50%; bottom:26px; transform:translateX(-50%); z-index:10;
+    color:var(--muted); font-size:12.5px; display:flex; align-items:center; gap:8px;
+    background:#0b0e14aa; border:1px solid var(--border); border-radius:20px; padding:8px 15px;
+    transition:opacity .4s; }
+  #hint .kbd { border:1px solid var(--border); border-radius:5px; padding:0 6px; color:var(--ink); font-size:11px; }
+  #hint.gone { opacity:0; }
+
+  #zoom { position:fixed; right:22px; top:50%; transform:translateY(-50%); z-index:10;
+    display:flex; flex-direction:column; gap:8px; }
+  #zoom button { width:38px; height:38px; border-radius:10px; border:1px solid var(--border);
+    background:#0b0e14cc; color:var(--ink); font-size:19px; cursor:pointer; line-height:1; }
+  #zoom button:hover { border-color:var(--accent); color:var(--accent); }
+
+  #credits { position:fixed; left:22px; bottom:14px; z-index:10; color:#5b6472; font-size:10.5px; max-width:46ch; }
+  #credits a { color:#7b8494; text-decoration:none; }
 </style>
 </head>
 <body>
-<div id="app">
-  <header>
-    <h1>Locale &middot; tissue map</h1>
-    <span class="meta" id="image-meta">no payload loaded</span>
-    <span class="spacer"></span>
-    <span id="renderer-badge"></span>
-    <div class="toggle" id="mode-toggle">
-      <button data-mode="cell_type" class="active">Cell type</button>
-      <button data-mode="niche">Niche</button>
-    </div>
-    <label class="file">load payload&hellip;
-      <input type="file" id="file-input" accept="application/json,.json" />
-    </label>
-    <a class="file" href="hero3d.html" style="text-decoration:none">3D cell &rarr;</a>
-  </header>
-  <div id="stage">
-    <canvas id="canvas2d" style="display:none"></canvas>
-    <div id="deck-canvas"></div>
-    <div id="cell3d-layer"><canvas id="cell3d-canvas"></canvas></div>
-    <div id="tooltip"></div>
-    <div id="zoom-hud"></div>
-  </div>
-  <aside>
-    <div class="panel-tabs" id="panel-tabs">
-      <button data-panel="legend" class="active">Legend</button>
-      <button data-panel="niches">Niches</button>
-      <button data-panel="survival">Survival</button>
-    </div>
-    <div class="panel" id="panel-legend">
-      <div id="legend"></div>
-      <div class="hint">
-        Recolor by <b>cell type</b> or <b>niche</b>. Drag to pan, scroll to zoom
-        &mdash; keep scrolling into a cell to reach the 3D model.
-      </div>
-    </div>
-    <div class="panel" id="panel-niches" style="display:none">
-      <div class="panel-note" id="niches-note"></div>
-      <div id="niche-cards"></div>
-    </div>
-    <div class="panel" id="panel-survival" style="display:none">
-      <div class="panel-note" id="survival-note"></div>
-      <div id="survival-cards"></div>
-    </div>
-    <div id="backend-badge"></div>
-  </aside>
+<div id="scene"></div>
+<div id="vignette"></div>
+
+<header>
+  <h1>Locale</h1>
+  <span class="sub">breast &middot; from organ to single cell</span>
+  <span class="spacer"></span>
+  <a href="dashboard.html">niche analysis &rarr;</a>
+</header>
+
+<div id="rail"><div class="line"></div></div>
+
+<div id="caption">
+  <div class="stage" id="cap-stage"></div>
+  <div class="name" id="cap-name"></div>
+  <div class="desc" id="cap-desc"></div>
+  <div class="scale"><span class="bar" id="cap-bar"></span><span class="barlbl" id="cap-barlbl"></span></div>
 </div>
 
-<!-- viz_bundle.js (real engine + tools output) sets window.LOCALE_BUNDLE; falls back to sample_payload.js. -->
-<script src="viz_bundle.js" onerror="void 0"></script>
-<script src="sample_payload.js" onerror="void 0"></script>
+<div id="hint"><span>scroll to dive in</span><span class="kbd">scroll</span></div>
+<div id="zoom"><button id="zin">+</button><button id="zout">&minus;</button></div>
+
+<div id="credits">
+  Real tissue. Breast cross-section &copy; Patrick J. Lynch (CC BY 3.0). Histology by
+  Mikael H&auml;ggstr&ouml;m (CC0), <a href="assets/tissue/SOURCES.md">sources</a>.
+</div>
+
 <script>
 (function () {
   "use strict";
+  var STAGES = [
+    { img:"assets/tissue/0_breast.jpg", stage:"Organ", name:"Breast tissue",
+      desc:"Ductal-lobular units (mauve) threaded through fat and vessels. Milk ducts branch through the breast toward the nipple.", fov:9000 },
+    { img:"assets/tissue/1_duct.jpg", stage:"~1 mm", name:"A milk duct, filled",
+      desc:"A duct in cross-section. Its lumen is packed with ductal carcinoma in situ (DCIS) — cancer still trapped inside the duct, with dark central necrosis.", fov:1600 },
+    { img:"assets/tissue/2_tissue.jpg", stage:"~600 µm", name:"Invasive tumor",
+      desc:"The cancer has broken out of the ducts and infiltrates the surrounding stroma and fat as irregular glands and cords.", fov:700 },
+    { img:"assets/tissue/3_nest.jpg", stage:"~300 µm", name:"Tumor cell nests",
+      desc:"Nests and cords of malignant epithelial cells wind between bands of pink collagen — the tumor's own disordered architecture.", fov:350 },
+    { img:"assets/tissue/4_cells.jpg", stage:"~150 µm", name:"Cancer cells, among normal",
+      desc:"Individual carcinoma cells — big, dark, irregular nuclei — clustered right beside normal fat cells (clear) and collagen. Malignant and normal, side by side.", fov:150 }
+  ];
+  var N = STAGES.length;
+  var scene = document.getElementById("scene");
+  var rail = document.getElementById("rail");
+  var hint = document.getElementById("hint");
 
-  // Palettes mirror src/locale/viz/payload.py.
-  var CELL_TYPE_COLORS = {
-    Tumor: "#d62728", CD8_T: "#1f77b4", CD4_T: "#17becf",
-    Macrophage: "#ff7f0e", Fibroblast: "#2ca02c", Endothelial: "#9467bd"
-  };
-  var NICHE_COLORS = ["#8c2d04", "#238b45", "#2171b5", "#cc4c02", "#6a51a3", "#00688B"];
-  // Mirror payload.py _FALLBACK_COLORS exactly (same length + order).
-  var FALLBACK = ["#e6194b","#3cb44b","#4363d8","#f58231","#911eb4","#46f0f0","#f032e6","#bcf60c","#fabebe","#008080"];
+  var layers = STAGES.map(function (s, i) {
+    var el = document.createElement("div");
+    el.className = "layer";
+    el.style.backgroundImage = "url('" + s.img + "')";
+    el.style.zIndex = String(i);
+    scene.appendChild(el);
+    var stop = document.createElement("div");
+    stop.className = "stop"; stop.dataset.i = i;
+    stop.innerHTML = '<span class="tick"></span><span class="lbl">' + s.name + "</span>";
+    stop.addEventListener("click", function () { glideTo(i); });
+    rail.appendChild(stop);
+    return el;
+  });
 
-  var state = { payload: null, mode: "cell_type", deck: null, view: null, bundle: null, highlight: null };
-  var stage = document.getElementById("stage");
-  var tooltip = document.getElementById("tooltip");
-  var badge = document.getElementById("renderer-badge");
-
-  function hexToRgb(hex) {
-    var h = hex.replace("#", "");
-    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)];
-  }
-  function cellTypeColor(ct, i) { return CELL_TYPE_COLORS[ct] || FALLBACK[i % FALLBACK.length]; }
-  function nicheColor(id) { return NICHE_COLORS[((id % NICHE_COLORS.length) + NICHE_COLORS.length) % NICHE_COLORS.length]; }
-
-  // Distinct categories in first-seen order.
-  function categories(units, key) {
-    var seen = {}, out = [];
-    units.forEach(function (u) { var v = u[key]; if (v != null && !(v in seen)) { seen[v] = 1; out.push(v); } });
-    return out;
-  }
-
-  // Prefer the payload/bundle legends (single source of truth) so dots match the
-  // legend swatches; fall back to the built-in palettes for a bare MapPayload.
-  function nicheColorFor(id) {
-    var nc = state.payload && state.payload.niche_colors;
-    if (nc && nc[id] != null) return nc[id];
-    return nicheColor(id);
-  }
-  function colorForUnit(u, idxByType) {
-    // Niche highlight (a clicked niche card): dim every other niche to gray.
-    if (state.highlight != null) {
-      return u.niche_id === state.highlight ? hexToRgb(nicheColorFor(u.niche_id)) : [46, 52, 62];
-    }
-    if (state.mode === "cell_type") {
-      var lg = state.payload && state.payload.legend;
-      if (lg && lg[u.cell_type]) return hexToRgb(lg[u.cell_type]);
-      return hexToRgb(cellTypeColor(u.cell_type, idxByType[u.cell_type] || 0));
-    }
-    if (u.niche_id == null) return [120, 120, 120];
-    return hexToRgb(nicheColorFor(u.niche_id));
-  }
-
-  // ---- powers-of-ten zoom: tissue -> single cell --------------------------------
-  // As deck.gl zoom grows, one cell fills more pixels. Past ENTER_PX we crossfade the
-  // flat scatter into the real 3D cell model (assets/model/), reaching it at FULL_PX.
-  var CELL_UM = 8, ENTER_PX = 90, FULL_PX = 420;
+  var zoom = 0, target = 0, MAXZ = N - 1;
   function smoothstep(a, b, x) { var t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
-  function nearestCell(tx, ty) {
-    var u = state.payload && state.payload.units, best = null, bd = Infinity;
-    if (!u) return null;
-    for (var i = 0; i < u.length; i++) {
-      var dx = u[i].x - tx, dy = u[i].y - ty, dd = dx * dx + dy * dy;
-      if (dd < bd) { bd = dd; best = u[i]; }
+
+  function apply() {
+    for (var k = 0; k < N; k++) {
+      var L = zoom - k;
+      var op = smoothstep(-1.0, -0.15, L) * (1 - smoothstep(0.65, 1.5, L));
+      var el = layers[k];
+      if (op <= 0.002) { el.style.opacity = "0"; el.style.visibility = "hidden"; continue; }
+      el.style.visibility = "visible";
+      el.style.opacity = op.toFixed(3);
+      el.style.transform = "scale(" + Math.pow(2, L).toFixed(4) + ")";
     }
-    return best;
-  }
-  function updateLOD(vs) {
-    if (!vs) return;
-    // OrthographicView zoom may be a scalar or [zoomX, zoomY]; normalize.
-    var z = Array.isArray(vs.zoom) ? vs.zoom[0] : vs.zoom;
-    if (!isFinite(z)) return;
-    var cellPx = CELL_UM * Math.pow(2, z);
-    var t = smoothstep(ENTER_PX, FULL_PX, cellPx);
-    document.getElementById("deck-canvas").style.opacity = String(1 - 0.92 * t);
-    document.getElementById("cell3d-layer").style.opacity = String(t);
-    var hud = document.getElementById("zoom-hud");
-    if (t > 0.02) {
-      if (window.Cell3D) { window.Cell3D.ensure(); window.Cell3D.setProgress(t); }
-      var tg = vs.target || [0, 0], cell = nearestCell(tg[0], tg[1]);
-      var name = cell ? cell.cell_type : "cell";
-      hud.style.display = "block";
-      hud.innerHTML = (t > 0.85 ? "cell level &middot; <b>" : "zooming in &middot; <b>") + name + "</b>";
-    } else {
-      hud.style.display = "none";
-      if (window.Cell3D) window.Cell3D.setProgress(0);
-    }
+    var idx = Math.max(0, Math.min(N - 1, Math.round(zoom)));
+    var s = STAGES[idx];
+    document.getElementById("cap-stage").textContent = "Scale " + (idx + 1) + " / " + N + " · " + s.stage;
+    document.getElementById("cap-name").textContent = s.name;
+    document.getElementById("cap-desc").textContent = s.desc;
+    var fov = STAGES[0].fov * Math.pow(STAGES[N - 1].fov / STAGES[0].fov, zoom / MAXZ);
+    var w = scene.clientWidth || window.innerWidth || 1280;
+    var umPerBar = fov * (110 / w);
+    document.getElementById("cap-barlbl").textContent =
+      umPerBar >= 1000 ? (umPerBar / 1000).toFixed(1) + " mm" : Math.round(umPerBar) + " µm";
+    var stops = rail.querySelectorAll(".stop");
+    for (var j = 0; j < stops.length; j++) stops[j].classList.toggle("on", j === idx);
   }
 
-  function buildLegend() {
-    var el = document.getElementById("legend");
-    el.innerHTML = "";
-    var items = [];
-    var p = state.payload;
-    // Honor the MapPayload.legend contract when its color_mode matches what we are
-    // showing (payload.py builds it with the same palettes we render dots with, so
-    // colors line up, and it carries the real niche names). If the user toggled to
-    // a mode the payload was not generated for, derive a legend from the data.
-    if (p.legend && Object.keys(p.legend).length && p.color_mode === state.mode) {
-      Object.keys(p.legend).forEach(function (label) { items.push([label, p.legend[label]]); });
-    } else if (state.mode === "cell_type") {
-      categories(p.units, "cell_type").forEach(function (ct, i) {
-        items.push([ct, cellTypeColor(ct, i)]);
-      });
-    } else {
-      var ids = categories(p.units, "niche_id").filter(function (v) { return v != null; });
-      ids.sort(function (a, b) { return a - b; });
-      var names = p.niche_names || {};
-      ids.forEach(function (id) {
-        items.push([names[id] != null ? names[id] : ("niche " + id), nicheColorFor(id)]);
-      });
-    }
-    items.forEach(function (pair) {
-      var row = document.createElement("div"); row.className = "legend-item";
-      var sw = document.createElement("span"); sw.className = "swatch"; sw.style.background = pair[1];
-      var lab = document.createElement("span"); lab.textContent = pair[0];
-      row.appendChild(sw); row.appendChild(lab); el.appendChild(row);
-    });
-  }
+  // Set the zoom target directly and let the layers' CSS transitions ease the change
+  // (transform/opacity transitions), so the glide never depends on requestAnimationFrame.
+  function glide() { zoom = target; apply(); }
+  function glideTo(i) { target = Math.max(0, Math.min(MAXZ, i)); glide(); }
+  function nudge(d) { target = Math.max(0, Math.min(MAXZ, target + d)); glide(); }
 
-  function bounds(units) {
-    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    units.forEach(function (u) {
-      if (u.x < minX) minX = u.x; if (u.x > maxX) maxX = u.x;
-      if (u.y < minY) minY = u.y; if (u.y > maxY) maxY = u.y;
-    });
-    return { minX: minX, minY: minY, maxX: maxX, maxY: maxY };
-  }
+  scene.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    target = Math.max(0, Math.min(MAXZ, target + (e.deltaY > 0 ? -1 : 1) * Math.min(0.5, Math.abs(e.deltaY) * 0.0016 + 0.12)));
+    hint.classList.add("gone");
+    glide();
+  }, { passive: false });
 
-  // ---- deck.gl (WebGL) renderer -------------------------------------------------
-  function renderDeck() {
-    var d = window.deck;
-    var b = bounds(state.payload.units);
-    var cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
-    var spanX = Math.max(1, b.maxX - b.minX), spanY = Math.max(1, b.maxY - b.minY);
-    var zoom = Math.log2(Math.min(stage.clientWidth / spanX, stage.clientHeight / spanY)) - 0.2;
-    var idxByType = {}; categories(state.payload.units, "cell_type").forEach(function (ct, i) { idxByType[ct] = i; });
-
-    function layer() {
-      return new d.ScatterplotLayer({
-        id: "cells-" + state.mode,
-        data: state.payload.units,
-        getPosition: function (u) { return [u.x, u.y]; },
-        getFillColor: function (u) { return colorForUnit(u, idxByType); },
-        // Radius in world units (microns) so cells grow as you scroll in, like a real
-        // tissue section. Clamped in pixels so they stay visible fully zoomed out.
-        getRadius: 4, radiusUnits: "common", radiusMinPixels: 1.2, radiusMaxPixels: 90,
-        stroked: true, getLineColor: [10, 12, 16], lineWidthUnits: "common",
-        getLineWidth: 0.4, lineWidthMinPixels: 0.3, lineWidthMaxPixels: 3,
-        pickable: true, updateTriggers: { getFillColor: state.mode }
-      });
-    }
-    if (!state.deck) {
-      badge.textContent = "WebGL (deck.gl)";
-      state.deck = new d.Deck({
-        parent: document.getElementById("deck-canvas"),
-        views: new d.OrthographicView({ flipY: true }),
-        initialViewState: { target: [cx, cy, 0], zoom: zoom },
-        controller: true,
-        layers: [layer()],
-        onViewStateChange: function (e) { updateLOD(e.viewState); },
-        onHover: function (info) {
-          if (info.object) {
-            tooltip.style.display = "block";
-            tooltip.style.left = info.x + 12 + "px";
-            tooltip.style.top = info.y + 12 + "px";
-            tooltip.innerHTML = info.object.cell_type +
-              (info.object.niche_id != null ? " &middot; niche " + info.object.niche_id : "");
-          } else { tooltip.style.display = "none"; }
-        }
-      });
-    } else {
-      state.deck.setProps({ layers: [layer()] });
-    }
-  }
-
-  // ---- canvas-2d fallback (no network needed) -----------------------------------
-  function renderCanvas() {
-    badge.textContent = "canvas 2D";
-    var cv = document.getElementById("canvas2d");
-    var dpr = window.devicePixelRatio || 1;
-    var W = stage.clientWidth, H = stage.clientHeight;
-    cv.width = W * dpr; cv.height = H * dpr;
-    var ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, W, H);
-    var b = bounds(state.payload.units), pad = 24;
-    var spanX = Math.max(1, b.maxX - b.minX), spanY = Math.max(1, b.maxY - b.minY);
-    var s = Math.min((W - 2 * pad) / spanX, (H - 2 * pad) / spanY);
-    var idxByType = {}; categories(state.payload.units, "cell_type").forEach(function (ct, i) { idxByType[ct] = i; });
-    var pts = state.payload.units.map(function (u) {
-      return {
-        sx: pad + (u.x - b.minX) * s,
-        sy: H - (pad + (u.y - b.minY) * s),  // flip y
-        c: colorForUnit(u, idxByType), u: u
-      };
-    });
-    pts.forEach(function (p) {
-      ctx.beginPath(); ctx.arc(p.sx, p.sy, 3.2, 0, 6.283);
-      ctx.fillStyle = "rgb(" + p.c[0] + "," + p.c[1] + "," + p.c[2] + ")";
-      ctx.fill();
-    });
-    cv.onmousemove = function (e) {
-      var r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
-      var best = null, bd = 64;
-      for (var i = 0; i < pts.length; i++) {
-        var dx = pts[i].sx - mx, dy = pts[i].sy - my, dd = dx * dx + dy * dy;
-        if (dd < bd) { bd = dd; best = pts[i]; }
-      }
-      if (best) {
-        tooltip.style.display = "block";
-        tooltip.style.left = mx + 12 + "px"; tooltip.style.top = my + 12 + "px";
-        tooltip.innerHTML = best.u.cell_type +
-          (best.u.niche_id != null ? " &middot; niche " + best.u.niche_id : "");
-      } else { tooltip.style.display = "none"; }
-    };
-  }
-
-  var useDeck = null;
-  function showBackend(which) {
-    document.getElementById("deck-canvas").style.display = which === "deck" ? "block" : "none";
-    document.getElementById("canvas2d").style.display = which === "canvas" ? "block" : "none";
-  }
-  function render() {
-    if (!state.payload) return;
-    document.getElementById("image-meta").innerHTML =
-      (state.payload.image_id || "unknown image") + " &middot; " + state.payload.units.length + " cells";
-    buildLegend();
-    if (useDeck === null) useDeck = !!(window.deck && window.deck.Deck);
-    if (useDeck) {
-      showBackend("deck");  // must be visible+sized BEFORE constructing Deck
-      try { renderDeck(); return; } catch (err) { useDeck = false; }
-    }
-    showBackend("canvas");
-    renderCanvas();
-  }
-
-  function setPayload(p) {
-    state.payload = p;
-    // New data (e.g. a different image via the picker) has its own coordinate range,
-    // so drop any existing deck and let render() recreate it with a fresh fitted
-    // camera. Mode toggles do NOT come through here, so pan/zoom is preserved there.
-    if (state.deck) { try { state.deck.finalize(); } catch (e) {} state.deck = null; }
-    if (p.color_mode === "niche" || p.color_mode === "cell_type") state.mode = p.color_mode;
-    syncToggle();
-    render();
-  }
-
-  function syncToggle() {
-    document.querySelectorAll("#mode-toggle button").forEach(function (btn) {
-      btn.classList.toggle("active", btn.dataset.mode === state.mode);
-    });
-  }
-
-  document.getElementById("mode-toggle").addEventListener("click", function (e) {
-    var btn = e.target.closest("button"); if (!btn) return;
-    state.mode = btn.dataset.mode; syncToggle(); render();
+  document.getElementById("zin").addEventListener("click", function () { nudge(0.6); hint.classList.add("gone"); });
+  document.getElementById("zout").addEventListener("click", function () { nudge(-0.6); });
+  window.addEventListener("keydown", function (e) {
+    if (e.key === "+" || e.key === "=" || e.key === "ArrowUp") { nudge(0.5); hint.classList.add("gone"); }
+    if (e.key === "-" || e.key === "ArrowDown") nudge(-0.5);
   });
+  window.addEventListener("resize", apply);
 
-  document.getElementById("file-input").addEventListener("change", function (e) {
-    var f = e.target.files[0]; if (!f) return;
-    var reader = new FileReader();
-    reader.onload = function () {
-      try { setPayload(JSON.parse(reader.result)); }
-      catch (err) { alert("Not a valid MapPayload JSON: " + err.message); }
-    };
-    reader.readAsText(f);
-  });
-
-  window.addEventListener("resize", function () {
-    if (state.deck) { try { state.deck.finalize(); } catch (e) {} state.deck = null; }
-    render();
-  });
-
-  // ---- analysis panel: real engine niches + cohort survival --------------------
-  function esc(s) { var d = document.createElement("div"); d.textContent = String(s); return d.innerHTML; }
-
-  function compBar(composition, cellLegend) {
-    var entries = Object.keys(composition).map(function (k) { return [k, composition[k]]; })
-      .sort(function (a, b) { return b[1] - a[1]; });
-    var html = '<div class="compbar">';
-    entries.forEach(function (e) {
-      var col = (cellLegend && cellLegend[e[0]]) || "#555";
-      html += '<span style="width:' + (e[1] * 100).toFixed(1) + "%;background:" + col +
-        '" title="' + esc(e[0]) + " " + (e[1] * 100).toFixed(0) + '%"></span>';
-    });
-    return html + "</div>";
-  }
-
-  function kmSvg(km) {
-    if (!km || !km.time || !km.time.length) return "";
-    var W = 248, H = 96, pad = 5, tmax = km.time[km.time.length - 1] || 1;
-    function line(arr, stroke, dash) {
-      var pts = arr.map(function (v, i) {
-        var x = pad + (km.time[i] / tmax) * (W - 2 * pad);
-        var y = pad + (1 - Math.max(0, Math.min(1, v))) * (H - 2 * pad);
-        return x.toFixed(1) + "," + y.toFixed(1);
-      }).join(" ");
-      return '<polyline fill="none" stroke="' + stroke + '" stroke-width="1.6"' +
-        (dash ? ' stroke-dasharray="3 2"' : "") + ' points="' + pts + '"/>';
-    }
-    return '<svg class="km" width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + " " + H + '">' +
-      '<line x1="' + pad + '" y1="' + (H - pad) + '" x2="' + (W - pad) + '" y2="' + (H - pad) +
-      '" stroke="#262b34"/>' + line(km.high, "#6ea8fe", false) + line(km.low, "#9aa4b2", true) + "</svg>" +
-      '<div class="km-legend"><span><i style="background:#6ea8fe"></i>high abundance</span>' +
-      '<span><i style="background:#9aa4b2"></i>low</span></div>';
-  }
-
-  function toggleHighlight(id) {
-    var on = state.highlight === id;
-    state.highlight = on ? null : id;
-    document.querySelectorAll("#niche-cards .ncard").forEach(function (c) {
-      c.classList.toggle("sel", !on && +c.dataset.niche === id);
-    });
-    if (!on && state.mode !== "niche") { state.mode = "niche"; syncToggle(); }
-    render();
-  }
-
-  function renderAnalysis(bundle) {
-    var cellLegend = bundle.map.cell_legend || {};
-    document.getElementById("niches-note").innerHTML =
-      "Recurring cellular neighborhoods in <b>" + esc(bundle.sample) + "</b> from the Lane A engine " +
-      "(k-means on neighborhood composition). Click a niche to highlight its cells.";
-    var nc = document.getElementById("niche-cards"); nc.innerHTML = "";
-    (bundle.niches || []).forEach(function (n) {
-      var col = (bundle.map.niche_colors && bundle.map.niche_colors[n.niche_id]) || "#888";
-      var chips = (n.marker_program || []).slice(0, 6).map(function (m) {
-        return '<span class="chip">' + esc(m) + "</span>";
-      }).join("");
-      var card = document.createElement("div");
-      card.className = "ncard"; card.dataset.niche = n.niche_id;
-      card.innerHTML = '<div class="nhead"><span class="dot" style="background:' + col + '"></span>' +
-        '<span class="nname">' + esc(n.name) + "</span></div>" +
-        compBar(n.composition, cellLegend) + '<div class="chips">' + chips + "</div>";
-      card.addEventListener("click", function () { toggleHighlight(n.niche_id); });
-      nc.appendChild(card);
-    });
-
-    var surv = bundle.cohort_survival || [];
-    document.getElementById("survival-note").innerHTML =
-      "Niche abundance vs patient survival (Cox + Kaplan-Meier, lifelines) on the cohort with " +
-      "outcome data. HR&gt;1 means worse survival where the niche is abundant.";
-    var sc = document.getElementById("survival-cards"); sc.innerHTML = "";
-    if (!surv.length) {
-      sc.innerHTML = '<div class="panel-note">No survival for this dataset (needs per-patient outcomes).</div>';
-    }
-    surv.forEach(function (n) {
-      var p = n.prognostic; if (!p) return;
-      var card = document.createElement("div");
-      card.className = "ncard"; card.style.cursor = "default";
-      card.innerHTML = '<div class="nhead"><span class="nname">' + esc(n.name) + "</span></div>" +
-        '<div class="prog">HR <b>' + p.hazard_ratio.toFixed(2) + "</b> (" +
-        p.ci_low.toFixed(2) + "&ndash;" + p.ci_high.toFixed(2) + ") &middot; p=" +
-        p.pvalue.toFixed(3) + " &middot; n=" + p.n_patients + "</div>" + kmSvg(p.km);
-      sc.appendChild(card);
-    });
-
-    var b = bundle.backend || {};
-    var keys = Object.keys(b);
-    var allReal = keys.length && keys.every(function (k) { return b[k] === "real"; });
-    document.getElementById("backend-badge").innerHTML =
-      "backend: <b>" + (allReal ? "real Lane A engine" : "mixed") + "</b> &middot; " + keys.length + " tools";
-  }
-
-  document.getElementById("panel-tabs").addEventListener("click", function (e) {
-    var btn = e.target.closest("button"); if (!btn) return;
-    var name = btn.dataset.panel;
-    document.querySelectorAll("#panel-tabs button").forEach(function (b) { b.classList.toggle("active", b === btn); });
-    ["legend", "niches", "survival"].forEach(function (pnl) {
-      document.getElementById("panel-" + pnl).style.display = (pnl === name) ? "block" : "none";
-    });
-  });
-
-  // Boot: try to upgrade to deck.gl from CDN, then render whatever payload we have.
-  function boot() {
-    if (window.LOCALE_BUNDLE) {
-      var bn = window.LOCALE_BUNDLE;
-      setPayload({
-        units: bn.map.units, legend: bn.map.cell_legend, color_mode: "cell_type",
-        image_id: bn.sample, niche_names: bn.map.niche_names, niche_colors: bn.map.niche_colors
-      });
-      renderAnalysis(bn);
-    } else if (window.LOCALE_PAYLOAD) {
-      setPayload(window.LOCALE_PAYLOAD);
-    } else {
-      document.getElementById("image-meta").textContent =
-        "no payload. run: python scripts/build_viz_bundle.py  (or use the file picker)";
-    }
-  }
-  var s = document.createElement("script");
-  s.src = "https://unpkg.com/deck.gl@8.9.35/dist.min.js";
-  s.onload = function () { useDeck = !!(window.deck && window.deck.Deck); render(); };
-  s.onerror = function () { useDeck = false; render(); };
-  document.head.appendChild(s);
-  boot();
+  apply();
 })();
-</script>
-
-<!-- Cell-level 3D layer: the real sourced model, revealed by deep zoom (assets/model/). -->
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.168.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.168.0/examples/jsm/"
-  }
-}
-</script>
-<script type="module">
-import * as THREE from "three";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-
-let inited = false, renderer, scene, camera, root, progress = 0;
-const mats = [];
-
-function resize() {
-  const layer = document.getElementById("cell3d-layer");
-  const w = layer.clientWidth, h = layer.clientHeight;
-  if (!w || !h) return;
-  renderer.setSize(w, h, false);
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
-}
-
-function ensure() {
-  if (inited) return;
-  inited = true;
-  const canvas = document.getElementById("cell3d-canvas");
-  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.05;
-  scene = new THREE.Scene(); // transparent background so it composites over the tissue
-
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-
-  camera = new THREE.PerspectiveCamera(45, 1, 0.01, 5000);
-  camera.position.set(0, 0, 3);
-  const key = new THREE.DirectionalLight(0xffffff, 2.0); key.position.set(3, 4, 5); scene.add(key);
-  const fill = new THREE.DirectionalLight(0x8fb4ff, 0.6); fill.position.set(-4, -2, -3); scene.add(fill);
-  root = new THREE.Group(); scene.add(root);
-  resize();
-  window.addEventListener("resize", resize);
-
-  new GLTFLoader().load("assets/model/scene.gltf", (g) => {
-    const model = g.scene;
-    const box = new THREE.Box3().setFromObject(model);
-    const size = box.getSize(new THREE.Vector3());
-    const center = box.getCenter(new THREE.Vector3());
-    model.position.sub(center);
-    const radius = Math.max(size.x, size.y, size.z) * 0.5 || 1;
-    const dist = radius / Math.sin((camera.fov * Math.PI) / 180 / 2);
-    camera.position.set(0, 0, dist * 1.25);
-    camera.near = dist / 100; camera.far = dist * 100;
-    camera.updateProjectionMatrix();
-    model.traverse((o) => {
-      if (o.isMesh && o.material) { o.material.transparent = true; mats.push(o.material); }
-    });
-    root.add(model);
-  });
-
-  renderer.setAnimationLoop(() => {
-    if (progress <= 0.001) return;
-    root.rotation.y += 0.003;
-    root.scale.setScalar(0.88 + 0.12 * progress); // slight rush-in as you reach the cell
-    for (const m of mats) m.opacity = progress;
-    renderer.render(scene, camera);
-  });
-}
-
-function setProgress(t) { progress = t; }
-window.Cell3D = { ensure, setProgress };
 </script>
 </body>
 </html>
