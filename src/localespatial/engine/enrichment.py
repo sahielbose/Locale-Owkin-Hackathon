@@ -54,9 +54,12 @@ def compute_enrichment(
     cell_types = [str(c) for c in target.obs["cell_type"].cat.categories]
     zscores = np.asarray(result["zscore"], dtype=float)
 
-    # squidpy stores "zscore" and "count", not a p-value. The z is already the
-    # standardized permutation statistic, so a two-sided p follows from the normal.
-    pvalues = 2.0 * norm.sf(np.abs(zscores))
+    # squidpy stores "zscore" and "count", not a p-value. A normal-tail p from the z
+    # (2 * norm.sf(|z|)) is an extrapolation far beyond the permutation resolution: at
+    # z = -32 it reads ~1e-224, but with n_perms permutations the finest p we can
+    # resolve is 1/n_perms. Floor it there so the number is defensible. We quote the z;
+    # this p is only ever a coarse floor and is not displayed anywhere in the product.
+    pvalues = np.maximum(2.0 * norm.sf(np.abs(zscores)), 1.0 / n_perms)
 
     return EnrichmentResult(
         scope=scope,
