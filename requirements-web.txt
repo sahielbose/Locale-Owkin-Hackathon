@@ -1,0 +1,13 @@
+# Backend for the live analysis engine (scripts/serve.py).
+# Engine stack (also in requirements.txt) plus the web server.
+anndata
+squidpy
+scanpy
+scikit-learn
+scipy
+lifelines
+numpy
+pandas
+fastapi
+uvicorn[standard]
+python-multipart

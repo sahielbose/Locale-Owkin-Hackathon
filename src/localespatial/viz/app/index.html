@@ -93,6 +93,19 @@
   #lab .close { background:#fff; border:1px solid #111; color:#111; padding:5px 12px; cursor:pointer;
     font-family:inherit; font-size:12px; }
   #lab .close:hover { background:#111; color:#fff; }
+  #lab .upload { background:#111; color:#fff; border:1px solid #111; padding:5px 12px; cursor:pointer;
+    font-family:inherit; font-size:12px; }
+  #lab .upload:hover { background:#333; }
+  #lab .exlink { background:#fff; border:1px solid #111; color:#111; padding:5px 10px; cursor:pointer;
+    font-family:inherit; font-size:12px; }
+  #lab .exlink:hover { background:#111; color:#fff; }
+  #lab .src { font-size:12px; font-style:italic; color:#555; }
+  #lab-busy { position:fixed; inset:0; z-index:50; background:#ffffffdd; display:none;
+    align-items:center; justify-content:center; gap:14px; font-size:15px; color:#111; }
+  #lab.busy #lab-busy { display:flex; }
+  #lab-busy .spin { width:22px; height:22px; border:3px solid #ccc; border-top-color:#111;
+    border-radius:50%; animation:labspin .8s linear infinite; }
+  @keyframes labspin { to { transform:rotate(360deg); } }
 
   #lab main { max-width:820px; margin:0 auto; padding:34px 30px 90px; }
   #lab .doc h1 { font-size:26px; font-weight:700; line-height:1.22; letter-spacing:-.01em; }
@@ -306,13 +319,19 @@
 <div id="lab">
   <div class="bar">
     <span class="brand">Locale</span>
+    <label class="upload" title="Upload an AnnData .h5ad (obs cell_type, obsm spatial; optional survival) to run the engine live">
+      Analyze your data<input type="file" id="lab-upload" accept=".h5ad,.h5" hidden />
+    </label>
+    <button class="exlink" id="lab-example" title="Run the engine on the committed example object">try example</button>
+    <span class="src" id="lab-src"></span>
     <span class="spacer"></span>
     <button class="close" id="lab-close" title="Back to the atlas">Return to atlas</button>
   </div>
+  <div id="lab-busy"><div class="spin"></div><span>Running the engine on your data&hellip;</span></div>
   <main>
     <div class="doc">
       <h1>Spatial cellular niches and breast-cancer survival</h1>
-      <div class="byline">Basel breast-cancer cohort (Jackson &amp; Fischer, 2020) &middot; imaging mass cytometry &middot; pre-registered survival analysis</div>
+      <div class="byline" id="lab-byline">Basel breast-cancer cohort (Jackson &amp; Fischer, 2020) &middot; imaging mass cytometry &middot; pre-registered survival analysis</div>
       <p class="abstract" id="lf-lead"></p>
 
       <h2><span class="secno">1.</span>Cohort and statistical power</h2>
@@ -351,7 +370,7 @@
       <p class="note" id="lvt-lead"></p>
       <h3>Inputs (reproduce this run)</h3>
       <div id="lvt-inputs"></div>
-      <h3>Results</h3>
+      <h3 id="lvt-resh">Results</h3>
       <div class="stats" id="lvt-stats"></div>
       <div id="lvt-groups"></div>
     </div>
@@ -362,36 +381,70 @@
 <script>
 (function () {
   "use strict";
-  var LAB = window.LOCALE_LAB;
   var panel = document.getElementById("lab");
   document.getElementById("open-lab").addEventListener("click", function () { panel.classList.add("open"); });
   document.getElementById("lab-close").addEventListener("click", function () { panel.classList.remove("open"); });
   window.addEventListener("keydown", function (e) { if (e.key === "Escape") panel.classList.remove("open"); });
-  if (!LAB) { document.getElementById("lf-lead").textContent = "lab_data.js not loaded."; return; }
+
+  // Live analysis: upload an .h5ad, run the engine on the server, re-render the report.
+  var srcEl = document.getElementById("lab-src");
+  if (window.LOCALE_LAB) srcEl.textContent = "demo: Basel breast-cancer cohort";
+  function runAnalysis(promise, busyLabel, doneLabel) {
+    panel.classList.add("busy"); srcEl.textContent = busyLabel;
+    promise
+      .then(function (r) { if (!r.ok) return r.text().then(function (t) { throw new Error(t || ("HTTP " + r.status)); }); return r.json(); })
+      .then(function (bundle) { window.renderLab(bundle); srcEl.textContent = doneLabel; panel.scrollTop = 0; })
+      .catch(function (err) {
+        srcEl.textContent = "";
+        alert("Analysis failed.\n\nLive analysis needs the engine backend running:\n  python scripts/serve.py\nThe hosted static demo shows the Basel cohort only.\n\n" + err.message);
+      })
+      .finally(function () { panel.classList.remove("busy"); });
+  }
+  document.getElementById("lab-upload").addEventListener("change", function (e) {
+    var file = e.target.files[0]; if (!file) return;
+    var fd = new FormData(); fd.append("file", file);
+    runAnalysis(fetch("/api/analyze", { method: "POST", body: fd }), "analyzing " + file.name + "...", "your data: " + file.name);
+    e.target.value = "";
+  });
+  document.getElementById("lab-example").addEventListener("click", function () {
+    runAnalysis(fetch("/api/example"), "running the engine on the example object...", "example: data/mock.h5ad");
+  });
 
   var COMP = { tumor:"#c0392b", stroma:"#2e8b57", immune:"#2b6cb0", other:"#7d5ba6", endothelial:"#d08a3e", vascular:"#d08a3e" };
   function esc(s){ var d=document.createElement("div"); d.textContent=String(s); return d.innerHTML; }
   function compColor(k){ return COMP[k] || "#7d5ba6"; }
+
+  // Render (or re-render) the whole report from a LOCALE_LAB bundle (demo or uploaded).
+  window.renderLab = function (LAB) {
+  if (!LAB) { document.getElementById("lf-lead").textContent = "lab_data.js not loaded."; return; }
 
   // Findings
   var f = LAB.findings, c = f.cohort;
   var niches = Object.keys(f.niches).map(function (k){ var n=f.niches[k]; n._id=k; return n; });
   niches.sort(function (a,b){ return (a.q_fdr-b.q_fdr) || (Math.abs(Math.log(b.hazard_ratio))-Math.abs(Math.log(a.hazard_ratio))); });
 
-  document.getElementById("lf-lead").innerHTML =
-    "Real output of the Locale engine on the <b>Basel breast-cancer cohort</b> (Jackson &amp; Fischer 2020). " +
-    "Spatial niches are detected across cores, then each niche's per-patient abundance is tested against overall " +
-    "survival with a Cox model. Hypotheses were <b>pre-registered</b> and p-values are corrected for testing " +
-    c.n_hypotheses_tested + " niches (Benjamini-Hochberg FDR + selection-aware).";
+  var uploaded = LAB.source === "uploaded";
+  document.getElementById("lab-byline").innerHTML = uploaded
+    ? "Your uploaded object &middot; " + ((LAB.inputs && LAB.inputs.n_cells) ? LAB.inputs.n_cells.toLocaleString() + " cells &middot; " : "") + "analysed live by the Locale engine"
+    : "Basel breast-cancer cohort (Jackson &amp; Fischer, 2020) &middot; imaging mass cytometry &middot; pre-registered survival analysis";
+  document.getElementById("lf-lead").innerHTML = uploaded
+    ? "Live output of the Locale engine on <b>your uploaded object</b>. Spatial niches are detected across " +
+      "images, each niche's abundance is tested against survival with a Cox model where outcome columns exist, " +
+      "and every niche is put through the validation battery below. " + c.n_hypotheses_tested + " niches found."
+    : "Real output of the Locale engine on the <b>Basel breast-cancer cohort</b> (Jackson &amp; Fischer 2020). " +
+      "Spatial niches are detected across cores, then each niche's per-patient abundance is tested against overall " +
+      "survival with a Cox model. Hypotheses were <b>pre-registered</b> and p-values are corrected for testing " +
+      c.n_hypotheses_tested + " niches (Benjamini-Hochberg FDR + selection-aware).";
 
   var stats = [
-    [c.n_patients, "patients", ""],
+    [c.n_patients, uploaded ? "patients / images" : "patients", ""],
     [c.n_events, "deaths (events)", ""],
-    [c.n_hypotheses_tested, "niches tested", "pre-registered"],
-    [(c.power*100).toFixed(0)+"%", "statistical power", "at α="+c.alpha],
-    [c.min_detectable_hr.toFixed(2), "min detectable HR", "given this cohort"],
-    [c.observed_best_p.toFixed(3), "best raw p", "selection-aware "+c.p_selection_aware.toFixed(2)]
+    [c.n_hypotheses_tested, "niches found", uploaded ? "" : "pre-registered"]
   ];
+  if (c.power != null) stats.push([(c.power*100).toFixed(0)+"%", "statistical power", "at α="+c.alpha]);
+  if (c.min_detectable_hr != null) stats.push([c.min_detectable_hr.toFixed(2), "min detectable HR", "given this cohort"]);
+  if (c.observed_best_p != null) stats.push([c.observed_best_p.toFixed(3), "best raw p",
+    c.p_selection_aware != null ? "selection-aware "+c.p_selection_aware.toFixed(2) : ""]);
   document.getElementById("lf-cohort").innerHTML = stats.map(function (s){
     return '<div class="stat"><div class="v">'+s[0]+'</div><div class="k">'+s[1]+'</div>'+(s[2]?'<div class="sub">'+s[2]+'</div>':'')+'</div>';
   }).join("");
@@ -432,10 +485,14 @@
   }).join("");
 
   // Tests
-  var m = LAB.meta, tests = LAB.tests || [];
-  document.getElementById("lvt-lead").innerHTML =
-    "The suite that guards the engine and the MCP server. Every function is checked against the committed " +
-    "<b>mock cohort</b> and the shared schema, so the analysis can't silently drift.";
+  var m = LAB.meta || {}, tests = LAB.tests || [];
+  var hasTests = tests.length > 0;
+  document.getElementById("lvt-resh").style.display = hasTests ? "" : "none";
+  document.getElementById("lvt-lead").innerHTML = hasTests
+    ? "The suite that guards the engine and the MCP server. Every function is checked against the committed " +
+      "<b>mock cohort</b> and the shared schema, so the analysis can't silently drift."
+    : "This run analyzed your uploaded object; the box below records exactly what went in. The pytest suite " +
+      "(shown on the hosted demo) guards the engine code itself and runs with <code>pytest -q</code>.";
 
   // the actual inputs the suite runs against
   var inp = LAB.inputs;
@@ -458,29 +515,34 @@
       "schema, so results are reproducible from the repository alone.</div>";
     document.getElementById("lvt-inputs").innerHTML = io;
   }
-  var tstats = [
-    [m.passed+"/"+m.total, "passing", m.failed ? m.failed+" failing" : "all green"],
-    [m.duration_s+"s", "wall time", ""],
-    [(m.files||[]).length, "test modules", ""],
-    [m.skipped||0, "skipped", ""]
-  ];
-  document.getElementById("lvt-stats").innerHTML = tstats.map(function (s,i){
-    var cls = i===0 && !m.failed ? "pass" : "";
-    return '<div class="stat"><div class="v '+cls+'">'+s[0]+'</div><div class="k">'+s[1]+'</div>'+(s[2]?'<div class="sub">'+s[2]+'</div>':'')+'</div>';
-  }).join("");
-  var byFile = {};
-  tests.forEach(function (t){ (byFile[t.file]=byFile[t.file]||[]).push(t); });
-  document.getElementById("lvt-groups").innerHTML = (m.files||[]).map(function (file){
-    var arr = byFile[file]||[];
-    var rows = arr.map(function (t){
-      var mark = t.outcome==="passed" ? "&#10003;" : t.outcome==="failed" ? "&#10007;" : "&#183;";
-      return '<div class="trow"><span class="dot">'+mark+'</span>'+
-        '<span class="tn">'+esc(t.label)+' <small>'+esc(t.name)+'</small></span>'+
-        '<span class="ms">'+t.ms+' ms</span></div>';
+  if (hasTests) {
+    var tstats = [
+      [m.passed+"/"+m.total, "passing", m.failed ? m.failed+" failing" : "all green"],
+      [m.duration_s+"s", "wall time", ""],
+      [(m.files||[]).length, "test modules", ""],
+      [m.skipped||0, "skipped", ""]
+    ];
+    document.getElementById("lvt-stats").innerHTML = tstats.map(function (s,i){
+      var cls = i===0 && !m.failed ? "pass" : "";
+      return '<div class="stat"><div class="v '+cls+'">'+s[0]+'</div><div class="k">'+s[1]+'</div>'+(s[2]?'<div class="sub">'+s[2]+'</div>':'')+'</div>';
     }).join("");
-    var pass = arr.filter(function (t){ return t.outcome==="passed"; }).length;
-    return '<div class="tfile"><h4>'+esc(file)+' <span class="count">'+pass+'/'+arr.length+' passing</span></h4>'+rows+'</div>';
-  }).join("");
+    var byFile = {};
+    tests.forEach(function (t){ (byFile[t.file]=byFile[t.file]||[]).push(t); });
+    document.getElementById("lvt-groups").innerHTML = (m.files||[]).map(function (file){
+      var arr = byFile[file]||[];
+      var rows = arr.map(function (t){
+        var mark = t.outcome==="passed" ? "&#10003;" : t.outcome==="failed" ? "&#10007;" : "&#183;";
+        return '<div class="trow"><span class="dot">'+mark+'</span>'+
+          '<span class="tn">'+esc(t.label)+' <small>'+esc(t.name)+'</small></span>'+
+          '<span class="ms">'+t.ms+' ms</span></div>';
+      }).join("");
+      var pass = arr.filter(function (t){ return t.outcome==="passed"; }).length;
+      return '<div class="tfile"><h4>'+esc(file)+' <span class="count">'+pass+'/'+arr.length+' passing</span></h4>'+rows+'</div>';
+    }).join("");
+  } else {
+    document.getElementById("lvt-stats").innerHTML = "";
+    document.getElementById("lvt-groups").innerHTML = "";
+  }
 
   // ---- engine graphs: enrichment heatmap, KM survival, validation ----
   var eng = LAB.engine;
@@ -604,9 +666,17 @@
       '<div class="vsmall" style="margin-top:8px">Subsample stability (ARI) as the niche count k varies. ' +
       'k=<b style="color:var(--ink)">' + ks.chosen + "</b> maximizes stability (ARI " + amax.toFixed(2) +
       ") and is the chosen number of niches. From scripts/run_basel_niches.py on the Basel cohort.</div>";
+  } else {
+    var nk = (LAB.inputs && LAB.inputs.n_niches) || "the chosen";
+    document.getElementById("ksweep").innerHTML =
+      '<div class="vsmall">Niches were fixed at k=<b style="color:var(--ink)">' + nk +
+      "</b> for this run; a full stability sweep runs offline on a larger cohort.</div>";
   }
 
   // single page, no tabs; everything is stacked as one scrollable report.
+  };  // end renderLab
+
+  if (window.LOCALE_LAB) window.renderLab(window.LOCALE_LAB);
 })();
 </script>
 </body>
