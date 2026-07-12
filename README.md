@@ -1,18 +1,18 @@
 # Locale
 
-**Spatial reasoning for AI scientists.** An MCP server that gives an agent access to tissue geography, and a calibrated statement of how far that geography can be trusted for any given question.
+Locale is an MCP server for spatial reasoning over tumor tissue. It gives an agent access to the spatial layout of a tissue, along with an estimate of how reliable that layout is for a given question.
 
 Built for the Owkin Rewiring Biology Hackathon. Validated on the Basel breast cancer cohort of Jackson, Fischer et al. (Nature, 2020).
 
-An AI reading a tumor sees a composition vector. A pathologist sees a picture. Two patients can have identical cell-type proportions and opposite outcomes, and the only thing that separates them is where the cells sit. Locale supplies the map. More importantly, it supplies the limits of the map: the failure mode that destroys an AI Scientist in a regulated setting is not a missed finding, it is a confident report of a finding that is not there. Locale is built so that its refusals are as legible as its results.
+Two patients can have the same cell-type proportions and different outcomes, because the proportions do not record where the cells sit. Tools that read composition alone miss this. Locale reads the spatial arrangement, and it reports how reliable that reading is for the question being asked. That second part is deliberate: a confident but wrong answer is more harmful than no answer in a clinical setting, so the tools report their uncertainty alongside their results.
 
 ![Basel cores at recovered coordinates, coloured by major class](docs/figures/cores_spatial.png)
 
-*Four cores from the cohort, every cell drawn at its recovered coordinate and coloured by major class (tumor red, stroma green, immune blue, endothelial purple). The leftmost core is 97% tumor and shows genuine tissue nests and voids; the rightmost is 32% tumor and shows immune and tumor cells separating into compartments. A wrong coordinate join would produce uniform confetti in every panel. This is the geography that a composition vector cannot see, recovered from segmentation masks and verified by exact per-core cell-count agreement.*
+*Four cores from the cohort, every cell drawn at its recovered coordinate and coloured by major class (tumor red, stroma green, immune blue, endothelial purple). The leftmost core is 97% tumor and shows tissue nests and voids; the rightmost is 32% tumor, where immune and tumor cells fall into separate compartments. A wrong coordinate join would produce uniform confetti in every panel. The coordinates were recovered from segmentation masks and checked against the published per-core cell counts, which matched exactly.*
 
-### Three tests, three passes
+Three independent checks, and what each returned:
 
-| Test | What it checks | Result |
+| Check | What it tests | Result |
 | --- | --- | --- |
 | Positive control | Recovers established biology it was never told about | Immune infiltration predicts better survival, HR 0.76, pre-registered |
 | External validation | Rediscovers a Nature paper's spatial communities, cold | Adjusted Rand Index 0.400 over 342,662 cells |
@@ -48,13 +48,13 @@ The full write-up is in [docs/Locale_Technical_Report.pdf](docs/Locale_Technical
 
 ## 1. Motivation
 
-Composition is not organisation. A tumor that is 65% malignant cells, 12% immune cells, and 23% stroma may be one in which lymphocytes have infiltrated the malignant compartment and are killing it, or one in which they are held at the margin and are doing nothing. These two tissues produce the same composition vector and the same bulk expression profile. They do not produce the same patient.
+Composition is not arrangement. A tumor that is 65% malignant cells, 12% immune cells, and 23% stroma may be one where lymphocytes have infiltrated the malignant compartment and are killing it, or one where they are held at the margin and do nothing. These two tissues give the same composition vector and the same bulk expression profile, but they can come from patients with very different outcomes.
 
-Agentic tools over multi-omics data read the composition. They cannot read the map. Locale supplies the map, and a calibrated statement of how much that map can be trusted for any particular question. The second point is the product.
+Agentic tools over multi-omics data read the composition. They cannot read the arrangement. Locale reads the arrangement, and it reports how much that reading can be trusted for a given question. That second capability is what composition-only tools lack.
 
 ## 2. What Locale is
 
-Locale is a Model Context Protocol (MCP) server. The analysis engine underneath it is a package of pure functions over a single `AnnData` object and contains no MCP code at all; the MCP tools are thin wrappers. That separation is what makes the science testable without a running server.
+Locale is a Model Context Protocol (MCP) server. The analysis engine underneath it is a package of pure functions over a single `AnnData` object and contains no MCP code; the MCP tools are thin wrappers. That separation is what lets the analysis be tested without a running server.
 
 The server exposes nine tools:
 
@@ -70,7 +70,7 @@ The server exposes nine tools:
 | `correlate_niche_outcome` | a niche's survival association plus the full statistical context |
 | `get_map_payload` | tissue-map coordinates for the viewer |
 
-The last one is the point of the whole exercise. `correlate_niche_outcome` never returns a bare p-value; it returns the hazard ratio, its confidence interval, the number of hypotheses tested, the Benjamini-Hochberg q-value, the selection-aware permutation p, the event count, the minimum hazard ratio the cohort can resolve at 80% power, and a plain verdict. See [section 13](#13-the-statistical-honesty-layer).
+`correlate_niche_outcome` never returns a bare p-value. It returns the hazard ratio, its confidence interval, the number of hypotheses tested, the Benjamini-Hochberg q-value, the selection-aware permutation p, the event count, the minimum hazard ratio the cohort can resolve at 80% power, and a verdict. See [section 13](#13-the-statistical-honesty-layer).
 
 ## 3. Results at a glance
 
@@ -90,39 +90,39 @@ The last one is the point of the whole exercise. `correlate_niche_outcome` never
 | Multiplicity | BH q > 0.29 for every niche |
 | Selection-aware | empirical p = 0.44 (1,000 permutations) |
 
-All figures below are regenerated from the committed pipeline by [`scripts/make_figures.py`](scripts/make_figures.py); none is hand-drawn.
+Every figure below is regenerated from the committed pipeline by [`scripts/make_figures.py`](scripts/make_figures.py).
 
 ## 4. Data provenance and retrieval
 
 Source: Jackson, H.W., Fischer, J.R., et al. (2020), "The single-cell pathology landscape of breast cancer," Nature 578:615 to 620. Imaging mass cytometry on a breast cancer tissue microarray, 35 antibody channels, single-cell segmentation. Archive: Zenodo record `10.5281/zenodo.3518284`.
 
-Neither archive (a combined 48 GB) was downloaded. Both were read by HTTP range request. A ZIP stores its central directory at the end of the file and each member occupies a contiguous compressed byte span, so with `Range` headers one can enumerate the contents and extract individual members without transferring the rest; Zenodo returns HTTP 206, confirming support. Two details make this correct rather than accidentally full-transfer:
+We read both archives (48 GB combined) by HTTP range request, without downloading them. A ZIP stores its central directory at the end of the file and each member occupies a contiguous compressed byte span, so with `Range` headers you can list the contents and extract individual members without transferring the rest. Zenodo returns HTTP 206, which confirms support. Two details have to be right, or the whole archive transfers by accident:
 
-1. The naive approach (open a member and read a kilobyte) issues a range request from the member offset to the end of file, which for an early member transfers nearly everything. We instead read the 30-byte local file header, parse the filename and extra-field lengths, compute the exact compressed span, and request precisely that.
-2. The central directory's extra-field length can differ from the local header's. The local header must actually be read.
+1. The naive approach (open a member and read a kilobyte) issues a range request from the member offset to the end of the file, which for an early member transfers nearly everything. We instead read the 30-byte local file header, parse the filename and extra-field lengths, compute the exact compressed span, and request that.
+2. The central directory's extra-field length can differ from the local header's, so the local header has to be read directly.
 
-Total transferred: approximately 5 GB out of 48 GB. Everything else is OME-TIFF image stacks and MATLAB sessions that are not used. See [`scripts/download_data.py`](scripts/download_data.py).
+About 5 GB was transferred out of 48 GB. The rest is OME-TIFF image stacks and MATLAB sessions the analysis does not use. See [`scripts/download_data.py`](scripts/download_data.py).
 
 ## 5. The coordinate problem
 
-The released marker table `SC_dat.csv` is in long format with five columns (`core, CellId, id, channel, mc_counts`) and one row per cell-channel pair. There is no x, no y, and no coordinate file anywhere in the archive. The coordinates existed in the authors' MATLAB pipeline; they were never exported in tabular form.
+The released marker table `SC_dat.csv` is in long format with five columns (`core, CellId, id, channel, mc_counts`) and one row per cell-channel pair. There is no x, no y, and no coordinate file anywhere in the archive. The coordinates existed in the authors' MATLAB pipeline but were never exported in tabular form.
 
-An IMC segmentation mask is a label image whose pixel value is the `CellId` within that core. Therefore
+An IMC segmentation mask is a label image whose pixel value is the `CellId` within that core. So
 
 ```
 regionprops(mask) -> (label, centroid) = (CellId, y, x)
 ```
 
-recovers coordinates directly, with no inference. Two traps: `regionprops` returns the centroid as `(row, col)` which is `(y, x)`, and swapping them silently transposes every tissue map; and the masks are not loose members but sit inside a nested archive that must be range-fetched whole. See [`scripts/extract_coords.py`](scripts/extract_coords.py).
+recovers coordinates directly, with no inference. Two traps: `regionprops` returns the centroid as `(row, col)`, which is `(y, x)`, and swapping them silently transposes every tissue map; and the masks are bundled inside a nested archive that has to be range-fetched whole. See [`scripts/extract_coords.py`](scripts/extract_coords.py).
 
-Mapping mask filenames to core identifiers is a pure transform, but the core number is the integer immediately preceding the `X..Y..` token, not the trailing integer. A first attempt keyed on the trailing token overlapped one real core; the corrected transform mapped 352, and the `X..Y..` tokens intersected 130 of 130, which proved it was a transform rather than a lookup.
+Mapping mask filenames to core identifiers is a pure transform, but the core number is the integer immediately before the `X..Y..` token, not the trailing integer. A first attempt keyed on the trailing token overlapped one real core. The corrected transform mapped 352, and the `X..Y..` tokens intersected 130 of 130, which showed the filenames could be mapped by a rule that applied to every core.
 
-**Join verification, done two ways before any analysis:**
+The join was verified two ways before any analysis ran:
 
 - Injectivity. 376 mapped masks resolve to 376 distinct cores; the mapping is one to one.
 - Per-core cell-count agreement. For every core, the cell count recovered from the mask equals the cell count in the PhenoGraph table exactly. All 376 of 376 cores agree (relative difference 0.0), including the 24 cores that required a metadata snap. A mis-mapped core would have carried a different count and been caught here. None was.
 
-Recovered: 844,498 cells across 376 of 376 cores, 0 duplicate ids, 0 NaN coordinates, densities of roughly 2,500 cells per square millimetre. Physically credible before any statistical test.
+The recovery gives 844,498 cells across 376 of 376 cores, 0 duplicate ids, 0 NaN coordinates, and densities of roughly 2,500 cells per square millimetre, which is ordinary solid-tissue density.
 
 ## 6. Cell-type ontology
 
@@ -137,11 +137,11 @@ The 27 metaclusters group into four major classes:
 | stroma | 8 to 13 | 6 | ~214,000 |
 | tumor | 14 to 27 | 58 | ~399,000 |
 
-This matters more than it looks. 58 of the 71 PhenoGraph clusters are tumor subtypes, so any analysis at PhenoGraph granularity dissolves: two adjacent cells in one tumor nest routinely land in different clusters, so "same type" becomes almost impossible and genuine spatial coherence is diluted to noise. All clustering is performed on metacluster id (27), never on names (25, because two pairs share a label), because the published communities we validate against were computed over the 27.
+This choice matters. 58 of the 71 PhenoGraph clusters are tumor subtypes, so analysis at PhenoGraph granularity falls apart: two adjacent cells in one tumor nest often land in different clusters, so "same type" becomes almost impossible to satisfy and real spatial coherence is diluted to noise. All clustering runs on metacluster id (27), not on names (25, because two pairs share a label), because the published communities we validate against were computed over the 27.
 
 ## 7. Cohort construction
 
-`diseasestatus` has two levels, tumor (289 cores) and non-tumor (87 cores); the 87 non-tumor cores were dropped. Overall-survival event coding was read from the data rather than guessed: `Patientstatus` is a four-level string, and we set `event = 1` for both death levels and `0` for both alive levels.
+`diseasestatus` has two levels, tumor (289 cores) and non-tumor (87 cores); the 87 non-tumor cores were dropped. We read the overall-survival event coding directly from the data. `Patientstatus` is a four-level string, and we set `event = 1` for both death levels and `0` for both alive levels.
 
 | Quantity | Value |
 | --- | --- |
@@ -159,9 +159,9 @@ See [`scripts/build_basel.py`](scripts/build_basel.py).
 squidpy.gr.spatial_neighbors(adata, coord_type="generic", delaunay=True, library_key="core")
 ```
 
-`coord_type="generic"` because IMC cells are not on a lattice. `library_key="core"` is the single most dangerous parameter in the pipeline: this is a tissue microarray, cells in different cores are physically unconnected tissue, and a graph built without partitioning by core fabricates edges between them, producing garbage niches with no error anywhere. We therefore assert the property rather than assume it. A guard function enumerates all edges and raises if any connects two cells from different cores.
+`coord_type="generic"` because IMC cells are not on a lattice. `library_key="core"` is the most dangerous parameter in the pipeline: this is a tissue microarray, cells in different cores are physically unconnected tissue, and a graph built without partitioning by core invents edges between them, which produces meaningless niches and raises no error. We check this explicitly: a guard function enumerates all edges and raises if any edge connects two cells from different cores.
 
-**Measured cross-core edges: 0.** See [`src/localespatial/engine/graph.py`](src/localespatial/engine/graph.py).
+The measured number of cross-core edges is 0. See [`src/localespatial/engine/graph.py`](src/localespatial/engine/graph.py).
 
 ## 9. Neighborhood enrichment
 
@@ -169,15 +169,15 @@ For each ordered pair of cell types, `squidpy.gr.nhood_enrichment` compares the 
 
 ![Neighborhood enrichment over the 27 metaclusters](docs/figures/enrichment_heatmap.png)
 
-The block-diagonal structure (like sits next to like) is the signature of real tissue: every diagonal block is strongly positive. Immune self-association is emphatic (self-enrichment z up to +498 for the B and T aggregates), endothelial self-enrichment is +82 despite endothelium being only about 3% of cells (vessels are linear structures and should self-associate), and stroma is +35. Tumor self-enrichment is compressed to +8 because tumor is the majority class and has the least room to exceed its own permutation null.
+The block-diagonal structure (like sits next to like) is what real tissue produces: every diagonal block is strongly positive. Immune self-association is strong, with self-enrichment z up to +498 for the B and T aggregates. Endothelial self-enrichment is +82 even though endothelium is only about 3% of cells, which fits, since vessels are linear structures and should self-associate. Stroma is +35. Tumor self-enrichment is compressed to +8 because tumor is the majority class and has the least room to exceed its own permutation null.
 
-The off-diagonal is where the biology sits. Tumor and immune cells avoid each other far beyond what their abundances would predict.
+The off-diagonal entries carry the biological signal. Tumor and immune cells avoid each other far more than their abundances would predict.
 
 ![Major-class enrichment blocks](docs/figures/enrichment_major_blocks.png)
 
-The single strongest exclusion is the HR-low-CK tumor phenotype against T cells, at z = -128. That is exactly the phenotype that dominates the immune-excluded niche 7 (section 10), so the enrichment matrix and the niche discovery corroborate each other from two independent computations. Immune exclusion is measured directly, in real tissue, composition-normalised, with no reference to any published result, and it emerged on the first honest run.
+The strongest single exclusion is the HR-low-CK tumor phenotype against T cells, at z = -128. That is the same phenotype that dominates the immune-excluded niche 7 (section 10), so the enrichment matrix and the niche discovery agree from two separate computations. The exclusion is measured from the coordinates alone, with no reference to any published result.
 
-(The bundled technical report quotes immune-block aggregates from an earlier run; the numbers above and every figure here are regenerated from the committed `data/basel_niched.h5ad` by `scripts/make_figures.py`.)
+(The bundled technical report quotes immune-block aggregates from an earlier run. The numbers above and every figure here are regenerated from the committed `data/basel_niched.h5ad` by `scripts/make_figures.py`.)
 
 ## 10. Niche discovery
 
@@ -187,13 +187,13 @@ $$w_i = \frac{1}{|N(i)|} \sum_{j \in N(i)} e_{c(j)}, \qquad e_{c(j)} \in \{0, 1\
 
 computed as $W C \oslash (W \mathbf{1})$ where $W$ is the adjacency and $C$ the one-hot cell-type matrix. A niche is a cluster in $w$-space: a recurring kind of neighborhood. Clustering is k-means with `n_init=10` and a fixed seed. See [`src/localespatial/engine/niches.py`](src/localespatial/engine/niches.py).
 
-**A documented failure: the identity block.** Our first specification concatenated each cell's own one-hot identity to its window, giving a 54-dimensional feature. The resulting niches were degenerate: they were the metaclusters relabelled. The cause is metric geometry. The identity block is a one-hot of magnitude 1, while the window is a distribution spread over 27 entries; in squared Euclidean distance the identity swamps every neighborhood difference, so k-means partitions by label. Worse, this passed the subsample-stability check, because a clustering that partitions by label is perfectly reproducible. Stability is not validity. The final feature is the window alone (27-dimensional, self-inclusive), the canonical Schurch and Nolan cellular-neighborhood formulation.
+One documented failure: the identity block. Our first specification concatenated each cell's own one-hot identity onto its window, giving a 54-dimensional feature. The resulting niches were degenerate; they were the metaclusters relabelled. The cause is metric geometry. The identity block is a one-hot of magnitude 1, while the window is a distribution spread over 27 entries, so in squared Euclidean distance the identity swamps every neighborhood difference and k-means partitions by label. This also passed the subsample-stability check, because a clustering that partitions by label is perfectly reproducible. A stable clustering is not necessarily a valid one. The final feature is the window alone (27-dimensional, self-inclusive), which is the standard Schurch and Nolan cellular-neighborhood formulation.
 
-`k = 12` was selected by subsample stability (ARI between clusterings of independent resamples), stability ARI = 0.67.
+We chose `k = 12` by subsample stability (ARI between clusterings of independent resamples), with stability ARI = 0.67.
 
 ![Niche composition](docs/figures/niche_composition.png)
 
-The full immune-exclusion gradient emerges without supervision:
+The full immune-exclusion gradient appears without supervision:
 
 | Niche | Character | tumor | immune | stroma | cells | cores | dominant type |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -203,65 +203,65 @@ The full immune-exclusion gradient emerges without supervision:
 | 7 | tumor, immune-excluded | 0.79 | 0.04 | 0.15 | 75k | 160 | HR low CK (67%) |
 | 0, 5 | stromal / vascular | ~0.27 | ~0.14 | ~0.56 | | | Vimentin, elongated |
 
-Niche 7 spans 160 of the 289 tumor cores and 75,000 cells, so it is a population and not an artefact. Its dominant constituent is the hormone-receptor-low tumor phenotype, which is the clinically aggressive one. An immune-excluded compartment made of the aggressive subtype is internally coherent biology, and it motivated hypothesis H1.
+Niche 7 spans 160 of the 289 tumor cores and 75,000 cells, so it reflects a real population across much of the cohort. Its dominant constituent is the hormone-receptor-low tumor phenotype, which is the clinically aggressive one. An immune-excluded compartment made of the aggressive subtype is coherent biology, and it is what motivated hypothesis H1.
 
 ## 11. External validation
 
-Jackson et al. performed a conceptually equivalent analysis and archived their results. Basel is therefore the one spatial oncology cohort in which a tool of this kind can be scored rather than merely exhibited. Their answers were kept sealed until the engine had produced its own.
+Jackson et al. ran a conceptually equivalent analysis and archived their results. Basel is the one spatial oncology cohort with an external answer to score a tool like this against. We kept their answers sealed until the engine had produced its own.
 
-Their ground truth is the recurring community phenotype, reached by a two-hop join: per-cell fine community to phenotype on `(core, Community)`, yielding a coarse label in 1 to 23. A first attempt joined on the 1,940-way fine community, which against our 12-way partition is mechanically meaningless and returned ARI 0.003; we reported nothing and investigated. The corrected two-hop join matched 100% of their tumor cells. See [`scripts/run_basel_groundtruth.py`](scripts/run_basel_groundtruth.py).
+Their ground truth is the recurring community phenotype, reached by a two-hop join: per-cell fine community to phenotype on `(core, Community)`, which yields a coarse label in 1 to 23. A first attempt joined on the 1,940-way fine community, which against our 12-way partition is mechanically meaningless and returned ARI 0.003; we reported nothing and looked into it. The corrected two-hop join matched 100% of their tumor cells. See [`scripts/run_basel_groundtruth.py`](scripts/run_basel_groundtruth.py).
 
-**ARI = 0.400, over 342,662 tumor cells,** our 12 niches against their 23 published tumor community phenotypes. Two different algorithms, two different feature spaces, two different values of k. Chance agreement is approximately zero; perfect agreement would indicate we had accidentally reimplemented their method. 0.400 is the signature of a genuine and independent rediscovery. The agreement is structured, not smeared: niche 7 concentrates into just 2 of their 23 communities, accounting for 85% of its cells.
+The ARI is 0.400, computed over 342,662 tumor cells, comparing our 12 niches to their 23 published tumor community phenotypes. The two analyses used different algorithms, feature spaces, and values of k, so chance agreement is near zero, and exact agreement would have meant we reimplemented their method by accident. An ARI of 0.400 sits well above chance and points to independent agreement. The agreement is also localised: niche 7 falls into just 2 of their 23 communities, which account for 85% of its cells.
 
-We also compared our enrichment matrix against the authors' published neighborhood heatmap and got full Pearson r = 0.38 but off-diagonal r near 0.004. The correlation is carried entirely by the diagonal. The two statistics answer different questions in the tumor block, so we report this comparison as inconclusive and exclude it from our claims. We do not present r = 0.38 as agreement. The ARI stands alone.
+We also compared our enrichment matrix against the authors' published neighborhood heatmap and got a full Pearson r of 0.38, with off-diagonal r near 0.004. The correlation is carried entirely by the diagonal. In the tumor block the two statistics answer different questions, so we report this comparison as inconclusive and leave it out of our claims. We base the agreement claim on the ARI and treat r = 0.38 as inconclusive.
 
 ## 12. Pre-registration and survival analysis
 
-Before any survival model was fitted, both hypotheses were written to [`PREREGISTRATION_survival.md`](PREREGISTRATION_survival.md) and timestamped. The file has not been modified since.
+Before any survival model was fitted, both hypotheses were written to [`PREREGISTRATION_survival.md`](PREREGISTRATION_survival.md) and timestamped. The file has not been changed since.
 
-- **H1**: niche 7 abundance (tumor-rich, immune-depleted, HR-low-CK dominant) predicts worse overall survival.
-- **H2**: niche 1 abundance (immune-rich, infiltrated) predicts better overall survival.
+- H1: niche 7 abundance (tumor-rich, immune-depleted, HR-low-CK dominant) predicts worse overall survival.
+- H2: niche 1 abundance (immune-rich, infiltrated) predicts better overall survival.
 
-These are confirmatory and carry no multiple-testing penalty. Every other niche is exploratory.
+These two are confirmatory and carry no multiple-testing penalty. Every other niche is exploratory.
 
-**Feature construction.** For each patient $p$ and niche $j$, the abundance $A_{pj}$ is the fraction of that patient's cells in niche $j$. This is a 281 by 12 matrix, and it is the entire candidate biomarker.
+The candidate biomarker is a niche-abundance matrix. For each patient $p$ and niche $j$, the abundance $A_{pj}$ is the fraction of that patient's cells in niche $j$, which gives a 281 by 12 matrix.
 
-**Model.** One Cox proportional-hazards model per niche, adjusted for grade and clinical subtype, hazard ratios reported per standard deviation of abundance:
+We fit one Cox proportional-hazards model per niche, adjusted for grade and clinical subtype, with hazard ratios reported per standard deviation of abundance:
 
 $$h(t \mid A_{\cdot j}) = h_0(t)\, \exp\!\big(\beta_j A_{\cdot j} + \gamma_1\,\mathrm{grade} + \gamma_2\,\mathrm{clinical\_type}\big)$$
 
-**Confirmatory results.**
+The two pre-registered tests:
 
 | Hypothesis | HR / SD | 95% CI | p |
 | --- | --- | --- | --- |
 | H2: niche 1 (infiltrated) to better OS | 0.76 | [0.59, 1.00] | 0.046 |
 | H1: niche 7 (excluded) to worse OS | 1.08 | [0.86, 1.34] | 0.525 |
 
-H2 is confirmed, and it is a calibration rather than a discovery: tumor-infiltrating lymphocytes have been prognostic in breast cancer for over a decade. We present it as evidence that the instrument fires when there is real signal. The interval's upper bound sits exactly at 1.00, and we state it as the marginal result it is. H1 failed: the direction is as pre-registered but the effect is null and the interval straddles unity.
+H2 holds. Tumor-infiltrating lymphocytes have been known to be prognostic in breast cancer for over a decade, so we treat this as a calibration check that the method responds to real signal. The interval's upper bound sits at exactly 1.00, so the result is marginal, and we say so. H1 does not hold: the direction matches the pre-registration, but the effect is null and the interval includes 1.
 
 ![Per-niche survival forest plot](docs/figures/survival_forest.png)
 
-**The Kaplan-Meier inverts the sign.** The unadjusted median split of niche-7 abundance puts the high-exclusion arm slightly above the low arm (better survival), which is the opposite direction to both H1 and the adjusted Cox estimate. Both are null, so they are not in formal contradiction, but the sign is unstable across specifications, and that instability is itself the finding: it is exactly what one observes when there is no underlying effect and the estimate is driven by noise and covariate adjustment.
+The unadjusted Kaplan-Meier split inverts the sign of the adjusted estimate. A median split of niche-7 abundance puts the high-exclusion arm slightly above the low arm (better survival), the opposite direction to both H1 and the adjusted Cox model. Both results are null, so they do not formally contradict, but the sign flips between specifications, which is the pattern you see when there is no real effect and the estimate follows noise and covariate adjustment.
 
 ![Kaplan-Meier by niche 7 abundance](docs/figures/km_niche7.png)
 
-**Multiplicity.** Benjamini-Hochberg across all twelve niches gives q > 0.29 everywhere. Nothing survives correction.
+Benjamini-Hochberg correction across all twelve niches gives q > 0.29 everywhere, so nothing survives correction.
 
-**Selection-aware permutation.** A BH correction still assumes the twelve tests are the tests you meant to run. The stronger question: given that we would have reported whichever niche looked best, how surprising is our best result? Permute the survival labels across the 281 patients, refit all twelve Cox models, record the best p, repeat 1,000 times. The empirical p is the fraction of permuted runs whose best p beats ours.
+A BH correction still assumes the twelve tests are the tests we meant to run. A stronger check asks: given that we would have reported whichever niche looked best, how surprising is our best result? We permute the survival labels across the 281 patients, refit all twelve Cox models, record the best p, and repeat 1,000 times. The empirical p is the fraction of permuted runs whose best p beats ours.
 
 ```
 observed best p = 0.093   =>   empirical p = 0.44
 ```
 
-Our best exploratory niche is entirely consistent with noise once one accounts for having tested twelve.
+Our best exploratory niche is consistent with noise once we account for having tested twelve.
 
-**Sensitivity.** Leave-one-core-out, refitting the H1 model with each of the 289 cores removed in turn: the direction is stable (HR > 1 in 289 of 289 refits) but the magnitude never exceeds about 1.06 and is never significant. No single core carries the effect, because there is no effect to carry.
+For a leave-one-core-out check we refit the H1 model with each of the 289 cores removed in turn. The direction is stable (HR > 1 in 289 of 289 refits), but the magnitude never exceeds about 1.06 and is never significant, so no single core drives the result.
 
-**Power.** 79 events across 281 patients is roughly 6 to 7 events per covariate at k = 12. At 80% power this cohort can only resolve hazard ratios beyond about 1.37, and the observed effects sit inside that band. The spatial signal is strong and real; at this power it does not translate into a defensible survival effect, and Locale does not report one. It does not report the absence of a biomarker either. It reports the limits of the evidence. That distinction is the difference between a measurement and an overclaim, and it is the reason the tool exists.
+With 79 events across 281 patients, there are roughly 6 to 7 events per covariate at k = 12. At 80% power the cohort can only resolve hazard ratios beyond about 1.37, and the observed effects fall inside that band. The spatial signal is strong, but at this sample size it does not produce a defensible survival effect. The tool reports that limit directly: the data cannot rule out a clinically meaningful hazard ratio, and it cannot support one either.
 
 ## 13. The statistical honesty layer
 
-`correlate_niche_outcome` is the tool that carries the whole thesis. It never returns a bare point estimate. For niche 1, the positive control, over the MCP protocol it returns:
+`correlate_niche_outcome` returns all of this context in one call. It never returns a bare point estimate. For niche 1, the positive control, it returns this over the MCP protocol:
 
 ```json
 {
@@ -278,26 +278,26 @@ Our best exploratory niche is entirely consistent with noise once one accounts f
 }
 ```
 
-The raw p is 0.046, which an expression-only tool would report as a hit. The four fields an agent cannot compute for itself (`n_hypotheses_tested`, `q_fdr`, `p_selection_aware`, `min_detectable_hr`) ship with every finding, and they turn a plausible p-value into an honest verdict. The minimum detectable hazard ratio is a Schoenfeld power calculation: with 79 events, effects inside [1/1.37, 1.37] are underpowered. See [`src/localespatial/engine/outcome.py`](src/localespatial/engine/outcome.py) and the demo transcript in [`demo/transcript.md`](demo/transcript.md).
+The raw p is 0.046, which an expression-only tool would report as a hit. The four fields an agent cannot compute for itself (`n_hypotheses_tested`, `q_fdr`, `p_selection_aware`, `min_detectable_hr`) ship with every finding, and they are what turn a plausible p-value into a supported or unsupported verdict. The minimum detectable hazard ratio is a Schoenfeld power calculation: with 79 events, effects inside [1/1.37, 1.37] are underpowered. See [`src/localespatial/engine/outcome.py`](src/localespatial/engine/outcome.py) and the demo transcript in [`demo/transcript.md`](demo/transcript.md).
 
 ## 14. Register of negative results
 
-Recorded in full, because a methods document that lists only what worked is an advertisement.
+Recorded in full, since a methods writeup that lists only what worked is not much use to anyone checking it.
 
-1. Coordinates absent from the marker table. Discovered at hour zero by inspecting the header; the project was gated on this and did not proceed until it was resolved.
-2. Mask filename regex, first attempt. Keyed on the trailing integer, overlapped one real core. Corrected to the integer preceding the XY token, 352.
+1. Coordinates absent from the marker table. Found at hour zero by reading the header. The project was gated on this and did not proceed until it was resolved.
+2. Mask filename regex, first attempt. Keyed on the trailing integer, overlapped one real core. Corrected to the integer before the XY token, 352.
 3. The sum-of-squares null for the neighbour test. Reported 6.7x enrichment. It assumes global composition and ignores per-core composition. Discarded.
-4. The same-type-neighbour statistic. Even against the correct within-core scramble it returns about 1.07x, which met our pre-agreed stopping condition. It is uninformative for a majority-dominated cohort (the ratio decays to exactly 1.00 as cores become homogeneous, by construction). Superseded by composition-normalised enrichment.
+4. The same-type-neighbour statistic. Even against the correct within-core scramble it returns about 1.07x, which met our pre-agreed stopping condition. It is uninformative for a majority-dominated cohort: the ratio decays to exactly 1.00 as cores become homogeneous, by construction. Replaced by composition-normalised enrichment.
 5. The identity-plus-window niche feature. Produced degenerate niches that were metaclusters in disguise, and passed the stability check while doing so. Replaced with window-only.
-6. ARI against the fine community id. Returned 0.003, a 1,940-way against a 12-way partition. A category error, corrected by the two-hop join.
-7. Enrichment matrix correlation. r = 0.38 overall, near 0.004 off-diagonal. Inconclusive, excluded from all claims.
-8. Hypothesis H1. Pre-registered, and it failed. Not retuned, not repaired, not converted into a post-hoc ratio until something crossed 0.05.
+6. ARI against the fine community id. Returned 0.003, a 1,940-way against a 12-way partition. A category error, fixed by the two-hop join.
+7. Enrichment matrix correlation. r = 0.38 overall, near 0.004 off-diagonal. Inconclusive, left out of all claims.
+8. Hypothesis H1. Pre-registered, and it failed. We left it as a failed prediction and did not rework it into a post-hoc ratio to cross 0.05.
 
-Two of these (items 4 and 5) are cases where a metric actively lied and we caught it. They are documented in [`reports/`](reports/).
+Items 4 and 5 are cases where a metric gave a misleading answer and we caught it. Both are written up in [`reports/`](reports/).
 
 ## 15. Reproducibility
 
-The engine is a package of pure functions over a single `AnnData` object and contains no MCP code; the MCP tools are three-line wrappers. It consumes any `AnnData` carrying `obsm['spatial']`, a cell-type column, and a patient column, so pointing it at a different dataset requires a loader and no change to the analysis code.
+The engine is a package of pure functions over a single `AnnData` object and contains no MCP code; the MCP tools are three-line wrappers. It reads any `AnnData` carrying `obsm['spatial']`, a cell-type column, and a patient column, so pointing it at a different dataset takes a loader and no change to the analysis code.
 
 | Component | Library |
 | --- | --- |
@@ -315,14 +315,14 @@ pip install -e .                       # installs the localespatial package
 python scripts/make_mock.py            # writes the committed data/mock.h5ad
 pytest -q                              # 44 tests, all green
 
-# real cohort (requires the extracted CSVs; see scripts/download_data.py)
+# real cohort (needs the extracted CSVs; see scripts/download_data.py)
 python scripts/build_basel.py          # builds data/basel_niched.h5ad
 python scripts/run_basel_niches.py     # niche discovery + enrichment sanity
 python scripts/run_basel_survival.py   # pre-registered survival analysis
 python scripts/make_figures.py         # regenerates docs/figures/
 ```
 
-Note on the import path: the package is named `localespatial`, not `locale`, because a top-level `locale` package shadows the Python standard library `locale` module that `gettext` (inside click and uvicorn) imports, which breaks the server. The product is still called Locale; only the import path changed.
+A note on the import path: the package is named `localespatial`, not `locale`, because a top-level `locale` package shadows the Python standard library `locale` module that `gettext` (inside click and uvicorn) imports, which breaks the server. The product is still called Locale; only the import path changed.
 
 ## 16. Repository layout
 
@@ -355,7 +355,7 @@ Locale/
 
 ## 17. Using the MCP server
 
-The server defaults to the streamable-http transport for remote use (for example as a K Pro custom connector, an `https .../mcp` URL). For a local desktop client it speaks stdio.
+The server defaults to the streamable-http transport for remote use, for example as a K Pro custom connector at an `https .../mcp` URL. For a local desktop client it speaks stdio.
 
 Run it directly:
 
@@ -365,7 +365,7 @@ LOCALE_TRANSPORT=stdio python -m localespatial.mcp_server.server   # stdio (desk
 LOCALE_DATA=/path/to/basel_niched.h5ad LOCALE_TRANSPORT=stdio python -m localespatial.mcp_server.server
 ```
 
-For Claude Desktop, add to `claude_desktop_config.json`:
+For Claude Desktop, add this to `claude_desktop_config.json`:
 
 ```json
 {
@@ -382,14 +382,14 @@ For Claude Desktop, add to `claude_desktop_config.json`:
 }
 ```
 
-All logging goes to stderr so it cannot corrupt the stdio JSON-RPC stream. Without `LOCALE_DATA` the server serves the committed mock.
+All logging goes to stderr so it cannot corrupt the stdio JSON-RPC stream. Without `LOCALE_DATA` the server reads the committed mock.
 
 ## 18. Limitations
 
 - Power. 79 events is underpowered for modest hazard ratios. The negative result on H1 is a statement about this cohort, not about the biology.
-- Single cohort. The Zurich cohort (about 70 patients) is in the same archive and is the natural external replication. It was not analysed within the time available.
-- Cell types are inherited, not re-derived. We use the authors' PhenoGraph assignments and metacluster map, a deliberate choice that makes the ARI comparison fair but means the pipeline has not been tested end to end from raw marker intensities.
-- Breast cancer only, one platform (IMC on a TMA). Generalisation to spot-based spatial transcriptomics is architecturally supported but untested.
+- Single cohort. The Zurich cohort (about 70 patients) is in the same archive and is the natural external replication. We did not analyse it in the time available.
+- Cell types come from the authors. We use their PhenoGraph assignments and metacluster map and did not re-derive cell types from the marker channels. This keeps the ARI comparison fair, but it means the pipeline has not been tested end to end from raw marker intensities.
+- Breast cancer only, one platform (IMC on a TMA). Generalisation to spot-based spatial transcriptomics is supported by the design but untested.
 
 ## 19. Citation, license, and contributors
 
@@ -398,5 +398,3 @@ If you use Locale, please cite the dataset it is validated on: Jackson, Fischer 
 Licensed under the MIT License; see [LICENSE](LICENSE).
 
 Contributors: Sahiel Bose, Pranav Achar, Shanay Gaitonde.
-
-Every team will show you a tool that found something. This is the one that knows when it has not.
