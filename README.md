@@ -37,12 +37,13 @@ The full write-up is in [docs/Locale_Technical_Report.pdf](docs/Locale_Technical
 11. [External validation](#11-external-validation)
 12. [Pre-registration and survival analysis](#12-pre-registration-and-survival-analysis)
 13. [The statistical honesty layer](#13-the-statistical-honesty-layer)
-14. [Register of negative results](#14-register-of-negative-results)
-15. [Reproducibility](#15-reproducibility)
-16. [Repository layout](#16-repository-layout)
-17. [Using the MCP server](#17-using-the-mcp-server)
-18. [Limitations](#18-limitations)
-19. [Citation, license, and contributors](#19-citation-license-and-contributors)
+14. [The risk model](#14-the-risk-model)
+15. [Register of negative results](#15-register-of-negative-results)
+16. [Reproducibility](#16-reproducibility)
+17. [Repository layout](#17-repository-layout)
+18. [Using the MCP server](#18-using-the-mcp-server)
+19. [Limitations](#19-limitations)
+20. [Citation, license, and contributors](#20-citation-license-and-contributors)
 
 ---
 
@@ -56,7 +57,7 @@ Agentic tools over multi-omics data read the composition. They cannot read the a
 
 Locale is a Model Context Protocol (MCP) server. The analysis engine underneath it is a package of pure functions over a single `AnnData` object and contains no MCP code; the MCP tools are thin wrappers. That separation is what lets the analysis be tested without a running server.
 
-The server exposes nine tools:
+The server exposes twelve tools:
 
 | Tool | Returns |
 | --- | --- |
@@ -68,6 +69,9 @@ The server exposes nine tools:
 | `find_prognostic_niches` | niches ranked by survival association |
 | `describe_niches` | the frozen niche catalog with honest names |
 | `correlate_niche_outcome` | a niche's survival association plus the full statistical context |
+| `predict_risk` | one patient's risk score with its trust verdict |
+| `rank_patients_by_risk` | cohort patients ranked by risk, each with the verdict |
+| `get_risk_model_card` | the fitted risk model's provenance and honest evaluation |
 | `get_map_payload` | tissue-map coordinates for the viewer |
 
 `correlate_niche_outcome` never returns a bare p-value. It returns the hazard ratio, its confidence interval, the number of hypotheses tested, the Benjamini-Hochberg q-value, the selection-aware permutation p, the event count, the minimum hazard ratio the cohort can resolve at 80% power, and a verdict. See [section 13](#13-the-statistical-honesty-layer).
@@ -280,7 +284,40 @@ With 79 events across 281 patients, there are roughly 6 to 7 events per covariat
 
 The raw p is 0.046, which an expression-only tool would report as a hit. The four fields an agent cannot compute for itself (`n_hypotheses_tested`, `q_fdr`, `p_selection_aware`, `min_detectable_hr`) ship with every finding, and they are what turn a plausible p-value into a supported or unsupported verdict. The minimum detectable hazard ratio is a Schoenfeld power calculation: with 79 events, effects inside [1/1.37, 1.37] are underpowered. See [`src/localespatial/engine/outcome.py`](src/localespatial/engine/outcome.py) and the demo transcript in [`demo/transcript.md`](demo/transcript.md).
 
-## 14. Register of negative results
+## 14. The risk model
+
+The niche layer answers a cohort question: which niches associate with survival. The risk layer answers a patient question: what is this patient's risk, and may we act on it. It is a single multivariate model rather than one Cox fit per niche, and it ships with the same honesty machinery.
+
+For each patient $p$ the feature vector is the standardized niche-abundance profile, where $z_{pj}$ is patient $p$'s fraction of cells in niche $j$, centered and scaled to unit standard deviation across the cohort. We fit one penalized Cox model over all twelve niches at once, adjusted for grade and clinical subtype:
+
+$$h(t \mid z_p) = h_0(t)\, \exp\!\Big(\sum_{j=1}^{12} \beta_j\, z_{pj} + \gamma^\top c_p\Big)$$
+
+with an L2 (ridge) penalty on the coefficients, because 79 events over twelve niches plus covariates is roughly five events per parameter and an unpenalized fit would overfit. The reported risk score is the niche-only linear predictor $\sum_j \beta_j z_{pj}$, so it decomposes exactly into per-niche contributions $\beta_j z_{pj}$ that sum to the score. That decomposition is the interpretability payoff: the tool can say which spatial niches drive a given patient's risk, and by how much.
+
+The risk score and its trust verdict are one object. A `RiskScore` carries a `RiskEvidence` with no default value, so no code path can return a number without its confidence interval, its power context, and its verdict. `predict_risk`, `rank_patients_by_risk`, and `get_risk_model_card` all return it inline, and a nonexistent patient raises an error rather than receiving a fabricated score. A score whose verdict is not "supported" must be reported as exploratory and non-actionable; the verbalization layer enforces that, and only a supported score is ever rephrased by the language model.
+
+The evaluation is built to refuse overconfidence:
+
+- Discrimination is the Harrell c-index computed out of fold: five-fold cross-validation stratified on the event, with standardization and coefficients refit inside each training fold, so a held-out patient never informs its own prediction. The in-sample c-index is optimistic and is never reported. A bootstrap gives a 95% interval on the cross-validated value.
+- Calibration is the slope of the held-out linear predictor refit against outcome, where 1.0 is well calibrated.
+- The multiplicity and power fields (`n_hypotheses_tested`, `q_fdr`, `p_selection_aware`, `min_detectable_hr`) are taken from the niche layer's `cohort_survival` summary rather than recomputed, so the two layers cannot disagree.
+
+The verdict is "supported" only if all three hold: the cross-validated c-index interval lower bound is clearly above 0.5, the selection-aware p is small, and the observed effects exceed the minimum hazard ratio the events can resolve. Otherwise it is "insufficient evidence", or "not evaluable" when the cohort cannot support cross-validation at all.
+
+On Basel the honest verdict is "insufficient evidence", and this is the intended behavior, not a failure. The power context alone denies "supported": at 79 events the minimum detectable hazard ratio is 1.37, and the niche layer's selection-aware p is 0.44. Running [`scripts/run_basel_risk.py`](scripts/run_basel_risk.py) fits the model, computes the out-of-fold c-index, and writes the card to `reports/risk_model_card.json`:
+
+```
+train patients: 281   events: 79   niches: 12
+c-index (out of fold): about 0.50, 95% CI includes 0.5
+min detectable HR:     1.37   (79 events, 80% power)
+p_selection_aware:     0.44
+VERDICT: insufficient evidence
+reason: cross-validated c-index CI includes 0.5; 79 events cannot resolve hazard ratios below 1.37.
+```
+
+The model is fully capable of prediction: it produces a per-patient score, a cohort percentile, a tertile risk group, and a per-niche attribution. It is also honest about when that prediction must not be acted on. A tool that can only ever say "high risk" is worth less than one that can say "high risk, and here is why you should not trust it yet on this cohort." The model is [`src/localespatial/engine/risk.py`](src/localespatial/engine/risk.py); the invariants (evidence never absent, the c-index is out of fold, the verdict flips when events are cut, contributions sum to the score) are locked in [`tests/test_risk.py`](tests/test_risk.py).
+
+## 15. Register of negative results
 
 Recorded in full, since a methods writeup that lists only what worked is not much use to anyone checking it.
 
@@ -335,7 +372,7 @@ and Locale reported that failure rather than retuning until something crossed
 Testing any of the above requires an ICI trial cohort with spatial data and
 response labels. That is the next dataset, not the next paragraph.
 
-## 15. Reproducibility
+## 16. Reproducibility
 
 The engine is a package of pure functions over a single `AnnData` object and contains no MCP code; the MCP tools are three-line wrappers. It reads any `AnnData` carrying `obsm['spatial']`, a cell-type column, and a patient column, so pointing it at a different dataset takes a loader and no change to the analysis code.
 
@@ -364,7 +401,7 @@ python scripts/make_figures.py         # regenerates docs/figures/
 
 A note on the import path: the package is named `localespatial`, not `locale`, because a top-level `locale` package shadows the Python standard library `locale` module that `gettext` (inside click and uvicorn) imports, which breaks the server. The product is still called Locale; only the import path changed.
 
-## 16. Repository layout
+## 17. Repository layout
 
 ```
 Locale/
@@ -393,7 +430,7 @@ Locale/
   data/                         gitignored (only mock.h5ad is committed)
 ```
 
-## 17. Using the MCP server
+## 18. Using the MCP server
 
 The server defaults to the streamable-http transport for remote use, for example as a K Pro custom connector at an `https .../mcp` URL. For a local desktop client it speaks stdio.
 
@@ -424,14 +461,14 @@ For Claude Desktop, add this to `claude_desktop_config.json`:
 
 All logging goes to stderr so it cannot corrupt the stdio JSON-RPC stream. Without `LOCALE_DATA` the server reads the committed mock.
 
-## 18. Limitations
+## 19. Limitations
 
 - Power. 79 events is underpowered for modest hazard ratios. The negative result on H1 is a statement about this cohort, not about the biology.
 - Single cohort. The Zurich cohort (about 70 patients) is in the same archive and is the natural external replication. We did not analyse it in the time available.
 - Cell types come from the authors. We use their PhenoGraph assignments and metacluster map and did not re-derive cell types from the marker channels. This keeps the ARI comparison fair, but it means the pipeline has not been tested end to end from raw marker intensities.
 - Breast cancer only, one platform (IMC on a TMA). Generalisation to spot-based spatial transcriptomics is supported by the design but untested.
 
-## 19. Citation, license, and contributors
+## 20. Citation, license, and contributors
 
 If you use Locale, please cite the dataset it is validated on: Jackson, Fischer et al., "The single-cell pathology landscape of breast cancer," Nature 578, 615 to 620 (2020).
 
