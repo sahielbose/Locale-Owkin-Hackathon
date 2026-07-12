@@ -23,8 +23,8 @@
   /* heatmap */
   table.heat{border-collapse:collapse;font-size:11px}
   table.heat th{color:var(--muted);font-weight:600;padding:3px 5px;text-align:right;white-space:nowrap}
-  table.heat th.col{text-align:center;writing-mode:vertical-rl;transform:rotate(180deg);height:56px;vertical-align:bottom}
-  table.heat td{width:38px;height:32px;text-align:center;color:#0b0d11;font-weight:600;border:1px solid var(--panel)}
+  table.heat th.col{text-align:center;height:22px}
+  table.heat td{width:64px;height:44px;text-align:center;color:#0b0d11;font-weight:700;border:1px solid var(--panel)}
   .heat-note{color:var(--muted);font-size:11px;margin-top:10px}
   /* map */
   #stage{position:relative;height:360px;background:#0b0d11;border-radius:8px;overflow:hidden}
@@ -44,17 +44,20 @@
   .hr{font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;white-space:nowrap}
   .hr.bad{background:rgba(224,106,106,.16);color:var(--bad)}
   .hr.good{background:rgba(55,192,127,.16);color:var(--good)}
-  .hr.na{background:#242a34;color:var(--muted)}
   .card .desc{color:var(--muted);font-size:12px;margin:7px 0 10px}
   .compbar{display:flex;height:9px;border-radius:5px;overflow:hidden;margin-bottom:8px}
   .compbar span{height:100%}
   .markers{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
   .chip{background:#242a34;border:1px solid var(--border);border-radius:6px;padding:2px 7px;font-size:11px;color:var(--ink)}
-  .kmwrap{display:flex;align-items:center;gap:10px;margin-top:6px}
-  .kmleg{font-size:10.5px;color:var(--muted);line-height:1.6}
-  .kmleg b{font-weight:700}
+  /* honesty bundle */
+  .honesty{margin-top:9px;border-top:1px solid var(--border);padding-top:9px;font-size:11px;color:var(--muted)}
+  .honesty .row{display:flex;justify-content:space-between;gap:10px;margin:2px 0}
+  .honesty .row b{color:var(--ink);font-weight:600;white-space:nowrap}
+  .verdict{margin-top:9px;display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:6px;letter-spacing:.02em}
+  .verdict.insufficient{background:rgba(224,106,106,.14);color:var(--bad);border:1px solid rgba(224,106,106,.32)}
+  .verdict.supported{background:rgba(55,192,127,.16);color:var(--good);border:1px solid rgba(55,192,127,.32)}
+  .note{margin-top:8px;font-size:11px;color:var(--muted);font-style:italic;line-height:1.5}
   .flow{color:var(--muted);font-size:11.5px}
-  code{background:#242a34;padding:1px 5px;border-radius:4px;color:var(--accent);font-size:11.5px}
   @media (max-width:920px){main{grid-template-columns:1fr}}
 </style>
 </head>
@@ -63,20 +66,20 @@
   <h1>Locale &middot; spatial niche dashboard</h1>
   <span class="sub" id="summary">loading&hellip;</span>
   <span class="spacer"></span>
-  <span class="flow">engine &rarr; MCP tools &rarr; this view</span>
+  <span class="flow">real cohort &middot; frozen niches &middot; honest verdicts</span>
 </header>
 <main>
   <section class="panel">
     <h2>Co-location &middot; who sits next to whom</h2>
     <div id="heatmap"></div>
-    <div class="heat-note">Neighborhood-enrichment z-score per cell-type pair. Blue = adjacent more than chance, orange = avoided.</div>
+    <div class="heat-note">Neighborhood-enrichment z, averaged to the four major classes. Blue = adjacent more than chance, orange = avoided. Tumor and immune avoid each other.</div>
   </section>
 
   <section class="panel">
     <h2>Tissue map
       <span class="toggle" id="toggle">
         <button data-mode="niche" class="active">Niche</button>
-        <button data-mode="cell_type">Cell type</button>
+        <button data-mode="cell_type">Major class</button>
       </span>
     </h2>
     <div id="stage"><canvas id="map"></canvas></div>
@@ -84,7 +87,7 @@
   </section>
 
   <section class="panel full">
-    <h2>Niches ranked by prognostic strength</h2>
+    <h2>Niches, ranked by raw p, with the honest verdict</h2>
     <div class="cards" id="cards"></div>
   </section>
 </main>
@@ -96,16 +99,16 @@
   if(!D){ document.getElementById("summary").textContent =
     "no data. run: PYTHONPATH=. python scripts/build_dashboard.py"; return; }
 
-  var CELL_COLORS = {Tumor:"#d62728",CD8_T:"#1f77b4",CD4_T:"#17becf",
-    Macrophage:"#ff7f0e",Fibroblast:"#2ca02c",Endothelial:"#9467bd"};
-  var NICHE_COLORS = ["#8c2d04","#238b45","#2171b5","#cc4c02","#6a51a3","#00688B"];
-  var FALLBACK = ["#e6194b","#3cb44b","#4363d8","#f58231","#911eb4","#46f0f0"];
+  var CELL_COLORS = {tumor:"#C0392B", immune:"#2E86C1", stroma:"#27AE60", endothelial:"#8E44AD"};
+  var NICHE_COLORS = ["#e6194b","#3cb44b","#4363d8","#f58231","#911eb4","#42d4f4",
+                      "#f032e6","#bfc94b","#008080","#9A6324","#800000","#808000"];
+  var FALLBACK = ["#e6194b","#3cb44b","#4363d8","#f58231","#911eb4","#42d4f4"];
   function cellColor(ct,i){ return CELL_COLORS[ct] || FALLBACK[i%FALLBACK.length]; }
-  function nicheColor(id){ return NICHE_COLORS[id % NICHE_COLORS.length]; }
+  function nicheColor(id){ id=(id==null?0:id); return NICHE_COLORS[((id%NICHE_COLORS.length)+NICHE_COLORS.length)%NICHE_COLORS.length]; }
 
   document.getElementById("summary").textContent =
-    D.cohort + " cohort · " + D.n_cells + " cells · " + D.n_patients +
-    " patients · " + D.n_images + " images";
+    D.n_cells.toLocaleString() + " cells · " + D.n_patients + " patients · " +
+    D.n_images + " cores · " + D.n_niches + " niches · " + D.n_events + " deaths";
 
   // ---- enrichment heatmap ----
   (function(){
@@ -114,7 +117,6 @@
     for(var i=0;i<z.length;i++) for(var j=0;j<z[i].length;j++) max=Math.max(max,Math.abs(z[i][j]));
     function color(v){
       var t = Math.max(-1,Math.min(1, v/max));
-      // diverging: + -> blue, - -> orange
       if(t>=0){ var a=t; return "rgb("+Math.round(255-a*(255-46))+","+Math.round(255-a*(255-125))+","+Math.round(255-a*(255-224))+")"; }
       var b=-t; return "rgb("+Math.round(255-b*(255-247))+","+Math.round(255-b*(255-148))+","+Math.round(255-b*(255-30))+")";
     }
@@ -125,8 +127,8 @@
       html += "<tr><th>"+ct[i]+"</th>";
       for(var j=0;j<ct.length;j++){
         var v=z[i][j];
-        html += "<td style='background:"+color(v)+"' title='"+ct[i]+" × "+ct[j]+": z="+v.toFixed(1)+"'>"+
-                (Math.abs(v)>=1?Math.round(v):"")+"</td>";
+        html += "<td style='background:"+color(v)+"' title='"+ct[i]+" x "+ct[j]+": z="+v.toFixed(1)+"'>"+
+                (v>0?"+":"")+v.toFixed(0)+"</td>";
       }
       html += "</tr>";
     }
@@ -134,52 +136,41 @@
     document.getElementById("heatmap").innerHTML = html;
   })();
 
-  // ---- niche cards ----
+  // ---- niche cards (the honesty bundle is the product) ----
   (function(){
     var host = document.getElementById("cards"), html="";
     D.niches.forEach(function(n){
-      var p = n.prognostic;
-      var hrClass = !p ? "na" : (p.hazard_ratio>1 ? "bad":"good");
-      var hrTxt = !p ? "no survival fit" :
-        "HR "+p.hazard_ratio.toFixed(2)+"  p="+p.pvalue.toFixed(2);
-      // composition bar (sorted desc)
+      var s = n.stats;
+      var hrClass = s.hazard_ratio>1 ? "bad":"good";
       var comp = Object.keys(n.composition).map(function(k){return [k,n.composition[k]];})
         .sort(function(a,b){return b[1]-a[1];});
       var bar = comp.map(function(c,i){
         return "<span style='width:"+(c[1]*100).toFixed(1)+"%;background:"+cellColor(c[0],i)+
           "' title='"+c[0]+" "+(c[1]*100).toFixed(0)+"%'></span>";}).join("");
-      var top3 = comp.slice(0,3).map(function(c){return c[0]+" "+(c[1]*100).toFixed(0)+"%";}).join(" · ");
-      var chips = n.marker_program.slice(0,6).map(function(m){return "<span class='chip'>"+m+"</span>";}).join("");
-      var km = (p && p.km) ? kmSvg(p.km) : "<div class='kmleg'>survival curve needs a powered cohort</div>";
+      var chips = (n.dominant||[]).slice(0,3).map(function(m){return "<span class='chip'>"+m+"</span>";}).join("");
+      var vClass = s.verdict==="supported" ? "supported":"insufficient";
       html += "<div class='card'>"+
         "<div class='top'><span class='dot' style='background:"+nicheColor(n.niche_id)+"'></span>"+
-          "<span class='name'>"+n.name+"</span>"+
-          "<span class='hr "+hrClass+"'>"+hrTxt+"</span></div>"+
-        "<div class='desc'>"+top3+"</div>"+
+          "<span class='name'>niche "+n.niche_id+" · "+n.name+"</span>"+
+          "<span class='hr "+hrClass+"'>HR "+s.hazard_ratio.toFixed(2)+"</span></div>"+
+        "<div class='desc'>"+n.n_cores+" cores · "+n.n_cells.toLocaleString()+" cells</div>"+
         "<div class='compbar'>"+bar+"</div>"+
         "<div class='markers'>"+chips+"</div>"+
-        km +
+        "<div class='honesty'>"+
+          "<div class='row'><span>hazard ratio (95% CI)</span><b>"+s.hazard_ratio.toFixed(2)+" ["+s.ci_95[0].toFixed(2)+", "+s.ci_95[1].toFixed(2)+"]</b></div>"+
+          "<div class='row'><span>raw p</span><b>"+s.p_raw.toFixed(3)+"</b></div>"+
+          "<div class='row'><span>q (BH FDR, "+s.n_hypotheses_tested+" tested)</span><b>"+s.q_fdr.toFixed(2)+"</b></div>"+
+          "<div class='row'><span>selection-aware p</span><b>"+s.p_selection_aware.toFixed(2)+"</b></div>"+
+          "<div class='row'><span>events / min detectable HR</span><b>"+s.n_events+" / "+s.min_detectable_hr.toFixed(2)+"</b></div>"+
+          "<span class='verdict "+vClass+"'>"+s.verdict+"</span>"+
+        "</div>"+
+        (n.note ? "<div class='note'>"+n.note+"</div>" : "")+
         "</div>";
     });
     host.innerHTML = html;
   })();
 
-  function kmSvg(km){
-    var W=210,H=96,pad=6, tmax=Math.max.apply(null,km.time)||1;
-    function pts(arr){ return arr.map(function(v,i){
-      var x=pad+(km.time[i]/tmax)*(W-2*pad);
-      var y=pad+(1-v)*(H-2*pad);
-      return x.toFixed(1)+","+y.toFixed(1);
-    }).join(" "); }
-    return "<div class='kmwrap'><svg width='"+W+"' height='"+H+"' viewBox='0 0 "+W+" "+H+"'>"+
-      "<rect x='0.5' y='0.5' width='"+(W-1)+"' height='"+(H-1)+"' fill='none' stroke='#262b34'/>"+
-      "<polyline fill='none' stroke='#6ea8fe' stroke-width='2' points='"+pts(km.high)+"'/>"+
-      "<polyline fill='none' stroke='#e06a6a' stroke-width='2' points='"+pts(km.low)+"'/>"+
-      "</svg><div class='kmleg'><span style='display:inline-block;width:14px;height:2px;background:#6ea8fe;vertical-align:middle'></span> high abundance<br>"+
-      "<span style='display:inline-block;width:14px;height:2px;background:#e06a6a;vertical-align:middle'></span> low abundance<br><span style='opacity:.7'>survival vs months</span></div></div>";
-  }
-
-  // ---- tissue map (canvas) ----
+  // ---- tissue map (canvas), one core, downsampled ----
   var mode = "niche";
   var canvas = document.getElementById("map"), ctx = canvas.getContext("2d");
   var units = D.map.units;
@@ -194,25 +185,21 @@
     var pad=16, w=canvas.width-2*pad, h=canvas.height-2*pad;
     var sx=w/((maxx-minx)||1), sy=h/((maxy-miny)||1), s=Math.min(sx,sy);
     var ox=pad+(w-(maxx-minx)*s)/2, oy=pad+(h-(maxy-miny)*s)/2;
-    var seen={};
-    units.forEach(function(u,i){
-      var col = mode==="niche" ? nicheColor(u.niche_id==null?0:u.niche_id)
-                               : cellColor(u.cell_type, ctIndex(u.cell_type));
-      seen[mode==="niche"?u.niche_id:u.cell_type]=col;
+    units.forEach(function(u){
+      var col = mode==="niche" ? nicheColor(u.niche_id)
+                               : cellColor(u.cell_type, 0);
       var px=ox+(u.x-minx)*s, py=oy+(maxy-u.y)*s;
-      ctx.beginPath(); ctx.arc(px,py,3.2,0,6.29); ctx.fillStyle=col; ctx.globalAlpha=.9; ctx.fill();
+      ctx.beginPath(); ctx.arc(px,py,2.2,0,6.29); ctx.fillStyle=col; ctx.globalAlpha=.85; ctx.fill();
     });
     ctx.globalAlpha=1;
     legend();
   }
-  var _ctOrder=[];
-  function ctIndex(ct){ var k=_ctOrder.indexOf(ct); if(k<0){_ctOrder.push(ct);k=_ctOrder.length-1;} return k; }
 
   function legend(){
     var host=document.getElementById("legend"), html="";
     if(mode==="niche"){
       D.niches.slice().sort(function(a,b){return a.niche_id-b.niche_id;}).forEach(function(n){
-        html += "<span class='item'><span class='swatch' style='background:"+nicheColor(n.niche_id)+"'></span>"+n.name+"</span>";
+        html += "<span class='item'><span class='swatch' style='background:"+nicheColor(n.niche_id)+"'></span>niche "+n.niche_id+"</span>";
       });
     } else {
       Object.keys(CELL_COLORS).forEach(function(ct,i){
