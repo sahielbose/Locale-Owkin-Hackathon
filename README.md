@@ -1,4 +1,4 @@
-# Locale
+# Locale - Owkin Rewiring Biology Hackathon
 
 Locale is an MCP server for spatial reasoning over tumor tissue. It gives an agent access to the spatial layout of a tissue, along with an estimate of how reliable that layout is for a given question.
 
