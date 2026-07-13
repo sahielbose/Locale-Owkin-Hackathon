@@ -4,6 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Locale &middot; breast, from organ to cell</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/dreampulse/computer-modern-web-font@master/font/Serif/cmun-serif.css" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/dreampulse/computer-modern-web-font@master/font/Typewriter/cmun-typewriter.css" />
 <style>
   :root { --ink:#eef1f6; --muted:#9aa4b2; --panel:#10131a; --border:#2a2f3a; --accent:#6ea8fe; }
   * { box-sizing:border-box; margin:0; padding:0; }
@@ -64,6 +67,139 @@
 
   #credits { position:fixed; left:22px; bottom:14px; z-index:10; color:#5b6472; font-size:10.5px; max-width:46ch; }
   #credits a { color:#7b8494; text-decoration:none; }
+
+  #anat { position:fixed; left:22px; top:64px; z-index:10; background:#0b0e14cc; border:1px solid var(--border);
+    border-radius:12px; padding:12px 14px; backdrop-filter:blur(8px); transition:opacity .4s; }
+  #anat h4 { font-size:10px; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:8px; font-weight:600; }
+  #anat ol { list-style:none; display:grid; grid-template-columns:auto auto; gap:3px 18px; }
+  #anat li { font-size:11.5px; color:var(--ink); display:flex; gap:7px; align-items:baseline; }
+  #anat li b { color:var(--accent); font-variant-numeric:tabular-nums; width:12px; }
+
+  .labbtn { background:#fff; color:#111; border:1px solid #111; padding:5px 12px; cursor:pointer;
+    font-family:'Computer Modern Serif',Georgia,serif; font-size:13px; }
+  .labbtn:hover { background:#111; color:#fff; }
+
+  /* single-page black-and-white validation report (Computer Modern, no rounded corners) */
+  #lab { position:fixed; inset:0; z-index:40; background:#fff; color:#111; overflow-y:auto;
+    font-family:'Computer Modern Serif',Georgia,'Times New Roman',serif;
+    opacity:0; visibility:hidden; transition:opacity .2s;
+    --ink:#111; --muted:#555; --border:#111; --panel:#fff; --card:#fff;
+    --accent:#111; --good:#111; --bad:#111; --warn:#555; }
+  #lab.open { opacity:1; visibility:visible; }
+  #lab .bar { position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:14px;
+    padding:11px 26px; border-bottom:1px solid #111; background:#fff; }
+  #lab .brand { font-size:14px; font-weight:700; }
+  #lab .spacer { flex:1; }
+  #lab .close { background:#fff; border:1px solid #111; color:#111; padding:5px 12px; cursor:pointer;
+    font-family:inherit; font-size:12px; }
+  #lab .close:hover { background:#111; color:#fff; }
+  #lab .upload { background:#111; color:#fff; border:1px solid #111; padding:5px 12px; cursor:pointer;
+    font-family:inherit; font-size:12px; }
+  #lab .upload:hover { background:#333; }
+  #lab .exlink { background:#fff; border:1px solid #111; color:#111; padding:5px 10px; cursor:pointer;
+    font-family:inherit; font-size:12px; }
+  #lab .exlink:hover { background:#111; color:#fff; }
+  #lab .src { font-size:12px; font-style:italic; color:#555; }
+  #lab-busy { position:fixed; inset:0; z-index:50; background:#ffffffdd; display:none;
+    align-items:center; justify-content:center; gap:14px; font-size:15px; color:#111; }
+  #lab.busy #lab-busy { display:flex; }
+  #lab-busy .spin { width:22px; height:22px; border:3px solid #ccc; border-top-color:#111;
+    border-radius:50%; animation:labspin .8s linear infinite; }
+  @keyframes labspin { to { transform:rotate(360deg); } }
+
+  #lab main { max-width:820px; margin:0 auto; padding:34px 30px 90px; }
+  #lab .doc h1 { font-size:26px; font-weight:700; line-height:1.22; letter-spacing:-.01em; }
+  #lab .byline { font-size:13px; font-style:italic; color:#333; margin:8px 0 20px; }
+  #lab .abstract { font-size:15px; line-height:1.62; margin-bottom:8px; max-width:66ch; }
+  #lab .note { font-size:13.5px; line-height:1.58; color:#333; margin-bottom:14px; max-width:66ch; }
+  #lab .abstract b, #lab .note b, #lab .vsmall b { font-weight:700; color:#111; }
+  #lab h2 { font-size:18px; font-weight:700; margin:36px 0 12px; padding-bottom:5px; border-bottom:1px solid #111; }
+  #lab h2 .secno { display:inline-block; width:1.5em; }
+  #lab h3 { font-size:14.5px; font-weight:700; font-style:italic; margin:22px 0 10px; }
+
+  #lab .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+    border:1px solid #111; border-bottom:none; border-right:none; margin-bottom:12px; }
+  #lab .stat { border-right:1px solid #111; border-bottom:1px solid #111; padding:11px 14px; }
+  #lab .stat .v { font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; }
+  #lab .stat .k { font-size:12px; color:#333; margin-top:2px; }
+  #lab .stat .sub { font-size:11px; color:#666; margin-top:3px; }
+
+  #lab .forest { border:1px solid #111; padding:16px; overflow-x:auto; background:#fff; }
+  #lab .frow { display:grid; grid-template-columns:200px 1fr 122px; align-items:center; gap:12px; height:30px; }
+  #lab .frow .fname { font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #lab .frow .fstat { font-size:12px; color:#333; text-align:right; font-variant-numeric:tabular-nums; }
+  #lab .faxis { display:grid; grid-template-columns:200px 1fr 122px; gap:12px; color:#555; font-size:11px; margin-top:8px; }
+  #lab .faxis .ticks { position:relative; height:14px; }
+  #lab .faxis .ticks span { position:absolute; transform:translateX(-50%); }
+
+  #lab .cards { display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:14px; }
+  #lab .card, #lab .kmcard, #lab .vcard { border:1px solid #111; padding:13px 14px; background:#fff; }
+  #lab .card .ctop, #lab .kmcard .ktop { display:flex; justify-content:space-between; align-items:baseline; gap:8px; }
+  #lab .card .nm, #lab .kmcard .knm { font-size:14px; font-weight:700; }
+  #lab .card .hr, #lab .kmcard .khr { font-size:13px; font-weight:700; font-variant-numeric:tabular-nums; }
+  #lab .card .cmeta { font-size:12px; color:#444; margin-top:2px; }
+  #lab .compbar { display:flex; height:9px; overflow:hidden; margin:10px 0 8px; border:1px solid #111; }
+  #lab .compbar span { height:100%; }
+  #lab .chips { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+  #lab .chip { font-size:11.5px; color:#111; border:1px solid #999; padding:0 6px; }
+
+  #lab .tfile { margin-bottom:14px; }
+  #lab .tfile h4 { font-size:14px; font-weight:700; font-style:italic; margin-bottom:7px; }
+  #lab .tfile h4 .count { color:#555; font-weight:400; font-style:normal; font-size:12.5px; }
+  #lab .trow { display:grid; grid-template-columns:16px 1fr 70px; align-items:center; gap:10px;
+    padding:5px 10px; border:1px solid #ccc; margin-bottom:4px; }
+  #lab .trow .dot { font-weight:700; text-align:center; }
+  #lab .trow .tn { font-size:13px; }
+  #lab .trow .tn small { color:#666; font-family:'Computer Modern Typewriter',ui-monospace,monospace; font-size:11.5px; }
+  #lab .trow .ms { text-align:right; color:#555; font-size:12px; font-variant-numeric:tabular-nums; }
+
+  #lab .heatwrap { overflow-x:auto; border:1px solid #111; padding:16px; background:#fff; }
+  #lab table.heat { border-collapse:collapse; font-size:11px; }
+  #lab table.heat th { color:#333; font-weight:700; padding:3px 6px; white-space:nowrap; }
+  #lab table.heat th.row { text-align:right; }
+  #lab table.heat th.col { height:74px; vertical-align:bottom; }
+  #lab table.heat th.col span { writing-mode:vertical-rl; transform:rotate(180deg); display:inline-block; }
+  #lab table.heat td { width:44px; height:34px; text-align:center; font-weight:700;
+    border:1px solid #ddd; font-variant-numeric:tabular-nums; }
+
+  #lab .kmlegend { display:flex; gap:16px; font-size:11px; color:#444; margin-top:5px; }
+  #lab .kmlegend i { display:inline-block; width:16px; height:0; border-top:2px solid #111; vertical-align:middle; margin-right:5px; }
+  #lab .kmlegend i.d { border-top-style:dashed; }
+  #lab .vcard .vh { font-size:14px; font-weight:700; margin-bottom:4px; display:flex; align-items:center; gap:9px; }
+  #lab .badge { font-size:11px; font-weight:700; padding:1px 7px; border:1px solid #111; text-transform:uppercase; letter-spacing:.03em; }
+  #lab .badge.no { background:#111; color:#fff; }
+  #lab .vbar { height:9px; border:1px solid #111; overflow:hidden; margin:9px 0 4px; }
+  #lab .vbar i { display:block; height:100%; background:#111; }
+  #lab .vsmall { color:#333; font-size:12.5px; line-height:1.55; }
+  #lab .mk { display:flex; align-items:center; gap:9px; font-size:13px; padding:4px 0; }
+
+  #lab .figs { display:grid; gap:16px; margin-bottom:6px; }
+  #lab .fig { border:1px solid #111; padding:12px 12px 10px; background:#fff; }
+  #lab .fig .ftitle { font-size:13.5px; font-weight:700; color:#111; margin-bottom:8px; }
+  #lab .fig img { width:100%; height:auto; display:block; }
+  #lab .fig .fcap { font-size:12px; color:#444; margin-top:8px; line-height:1.5; }
+  #lab .fig .ftag { float:right; font-size:10.5px; font-weight:700; color:#111; letter-spacing:.05em; border:1px solid #111; padding:0 5px; }
+  #lab table.io { border-collapse:collapse; width:100%; font-size:13px; margin-bottom:6px; }
+  #lab table.io th { text-align:left; vertical-align:top; white-space:nowrap; color:#333; font-weight:700;
+    width:170px; border:1px solid #111; padding:6px 10px; background:#fafafa; }
+  #lab table.io td { border:1px solid #111; padding:6px 10px; }
+  #lab table.io code, #lab .note code { font-family:'Computer Modern Typewriter',ui-monospace,monospace; }
+  #lab .verdict { border:2px solid #111; padding:12px 16px; margin-bottom:14px; display:flex; align-items:baseline; gap:12px; }
+  #lab .verdict .vlabel { font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; }
+  #lab .verdict .vreason { font-size:13px; color:#222; }
+  #lab .verdict.supported { border-color:#2e8b57; background:#eef7f0; }
+  #lab .verdict.supported .vlabel { color:#2e8b57; }
+  #lab .verdict.insufficient { border-color:#b8860b; background:#fbf6ea; }
+  #lab .verdict.insufficient .vlabel { color:#9a6d06; }
+  #lab .verdict.noteval { border-color:#777; background:#f4f4f4; }
+  #lab .verdict.noteval .vlabel { color:#555; }
+  #lab .rgroups { display:flex; border:1px solid #111; height:22px; margin:4px 0 6px; font-size:11px; }
+  #lab .rgroups span { display:flex; align-items:center; justify-content:center; color:#fff; white-space:nowrap; overflow:hidden; }
+  #lab table.pat { border-collapse:collapse; width:100%; font-size:12.5px; }
+  #lab table.pat th { text-align:left; border-bottom:1px solid #111; padding:5px 8px; color:#333; font-weight:700; }
+  #lab table.pat td { border-bottom:1px solid #ddd; padding:5px 8px; vertical-align:top; }
+  #lab table.pat .rg { font-weight:700; }
+  #lab .hide { display:none; }
 </style>
 </head>
 <body>
@@ -74,8 +210,18 @@
   <h1>Locale</h1>
   <span class="sub">breast &middot; from organ to single cell</span>
   <span class="spacer"></span>
-  <a href="dashboard.html">niche analysis &rarr;</a>
+  <button id="open-lab" class="labbtn">engine &amp; tests &rarr;</button>
 </header>
+
+<div id="anat">
+  <h4>Layers of the breast</h4>
+  <ol>
+    <li><b>1</b>Chest wall</li><li><b>5</b>Areola</li>
+    <li><b>2</b>Pectoral muscle</li><li><b>6</b>Milk duct</li>
+    <li><b>3</b>Lobules</li><li><b>7</b>Fatty tissue</li>
+    <li><b>4</b>Nipple</li><li><b>8</b>Skin</li>
+  </ol>
+</div>
 
 <div id="rail"><div class="line"></div></div>
 
@@ -90,7 +236,7 @@
 <div id="zoom"><button id="zin">+</button><button id="zout">&minus;</button></div>
 
 <div id="credits">
-  Real tissue. Breast cross-section &copy; Patrick J. Lynch (CC BY 3.0). Histology by
+  Real tissue. Breast cross-section &copy; Patrick J. Lynch (CC BY 2.5). Histology by
   Mikael H&auml;ggstr&ouml;m (CC0), <a href="assets/tissue/SOURCES.md">sources</a>.
 </div>
 
@@ -98,16 +244,16 @@
 (function () {
   "use strict";
   var STAGES = [
-    { img:"assets/tissue/0_breast.jpg", stage:"Organ", name:"Breast tissue",
-      desc:"Ductal-lobular units (mauve) threaded through fat and vessels. Milk ducts branch through the breast toward the nipple.", fov:9000 },
+    { img:"assets/tissue/0_breast.jpg", stage:"Organ", name:"The whole breast",
+      desc:"A cross-section through the entire breast, every layer from the skin and fat inward to the glandular ductal-lobular tree, the pectoral muscle, and the chest wall. We dive into the glands.", fov:9000 },
     { img:"assets/tissue/1_duct.jpg", stage:"~1 mm", name:"A milk duct, filled",
-      desc:"A duct in cross-section. Its lumen is packed with ductal carcinoma in situ (DCIS) — cancer still trapped inside the duct, with dark central necrosis.", fov:1600 },
+      desc:"A duct in cross-section. Its lumen is packed with ductal carcinoma in situ (DCIS), cancer still trapped inside the duct, with dark central necrosis.", fov:1600 },
     { img:"assets/tissue/2_tissue.jpg", stage:"~600 µm", name:"Invasive tumor",
       desc:"The cancer has broken out of the ducts and infiltrates the surrounding stroma and fat as irregular glands and cords.", fov:700 },
     { img:"assets/tissue/3_nest.jpg", stage:"~300 µm", name:"Tumor cell nests",
-      desc:"Nests and cords of malignant epithelial cells wind between bands of pink collagen — the tumor's own disordered architecture.", fov:350 },
+      desc:"Nests and cords of malignant epithelial cells wind between bands of pink collagen, the tumor's own disordered architecture.", fov:350 },
     { img:"assets/tissue/4_cells.jpg", stage:"~150 µm", name:"Cancer cells, among normal",
-      desc:"Individual carcinoma cells — big, dark, irregular nuclei — clustered right beside normal fat cells (clear) and collagen. Malignant and normal, side by side.", fov:150 }
+      desc:"Individual carcinoma cells, big, dark, irregular nuclei, clustered right beside normal fat cells (clear) and collagen. Malignant and normal, side by side.", fov:150 }
   ];
   var N = STAGES.length;
   var scene = document.getElementById("scene");
@@ -153,6 +299,11 @@
       umPerBar >= 1000 ? (umPerBar / 1000).toFixed(1) + " mm" : Math.round(umPerBar) + " µm";
     var stops = rail.querySelectorAll(".stop");
     for (var j = 0; j < stops.length; j++) stops[j].classList.toggle("on", j === idx);
+    // the anatomy legend belongs to the whole-breast scale; fade it as we dive in
+    var anat = document.getElementById("anat");
+    var av = 1 - smoothstep(0.15, 0.9, zoom);
+    anat.style.opacity = av.toFixed(3);
+    anat.style.pointerEvents = av < 0.05 ? "none" : "auto";
   }
 
   // Set the zoom target directly and let the layers' CSS transitions ease the change
@@ -177,6 +328,439 @@
   window.addEventListener("resize", apply);
 
   apply();
+})();
+</script>
+<!-- single-page black-and-white validation report (folded into this page) -->
+<div id="lab">
+  <div class="bar">
+    <span class="brand">Locale</span>
+    <label class="upload" title="Upload an AnnData .h5ad (obs cell_type, obsm spatial; optional survival) to run the engine live">
+      Analyze your data<input type="file" id="lab-upload" accept=".h5ad,.h5" hidden />
+    </label>
+    <button class="exlink" id="lab-example" title="Run the engine on the committed example object">try example</button>
+    <span class="src" id="lab-src"></span>
+    <span class="spacer"></span>
+    <button class="close" id="lab-close" title="Back to the atlas">Return to atlas</button>
+  </div>
+  <div id="lab-busy"><div class="spin"></div><span>Running the engine on your data&hellip;</span></div>
+  <main>
+    <div class="doc">
+      <h1>Spatial cellular niches and breast-cancer survival</h1>
+      <div class="byline" id="lab-byline">Basel breast-cancer cohort (Jackson &amp; Fischer, 2020) &middot; imaging mass cytometry &middot; pre-registered survival analysis</div>
+      <p class="abstract" id="lf-lead"></p>
+
+      <h2><span class="secno">1.</span>Cohort and statistical power</h2>
+      <div class="stats" id="lf-cohort"></div>
+
+      <h2><span class="secno">2.</span>Niche and survival association</h2>
+      <p class="note">Cox proportional-hazards ratio (95&thinsp;% CI) for each niche's per-patient abundance, ranked by Benjamini-Hochberg q. Red marker = risk (HR&gt;1); green marker = protective (HR&lt;1); &lowast; marks q&lt;0.05.</p>
+      <div class="forest" id="lf-forest"></div>
+      <h3>Niche composition</h3>
+      <div class="figs" id="figs-find"></div>
+      <div class="cards" id="lf-cards"></div>
+
+      <h2><span class="secno">3.</span>Neighborhood enrichment</h2>
+      <p class="note" id="le-lead"></p>
+      <div class="figs" id="figs-enrich"></div>
+      <h3>Live on the committed cohort (interactive)</h3>
+      <div class="heatwrap"><table class="heat" id="le-heat"></table></div>
+
+      <h2><span class="secno">4.</span>Survival curves</h2>
+      <p class="note" id="ls-lead"></p>
+      <div class="figs" id="figs-surv"></div>
+      <h3>Live on the committed cohort (interactive)</h3>
+      <div class="cards" id="ls-cards"></div>
+
+      <h2><span class="secno">5.</span>Validation</h2>
+      <p class="note" id="lvd-lead"></p>
+      <h3>Choosing k by subsample stability</h3>
+      <div class="forest" id="ksweep"></div>
+      <div class="figs" id="figs-valid" style="margin-top:16px"></div>
+      <h3>Spatial null control and cluster stability</h3>
+      <div class="cards" id="lvd-top"></div>
+      <h3>Marker validation</h3>
+      <div class="cards" id="lvd-markers"></div>
+
+      <h2><span class="secno">6.</span>Patient risk model</h2>
+      <p class="note" id="risk-lead"></p>
+      <div id="risk-verdict"></div>
+      <div class="stats" id="risk-stats"></div>
+      <h3>Which niches drive risk (hazard ratio per SD of abundance)</h3>
+      <div class="forest" id="risk-coef"></div>
+      <h3 id="risk-pat-h">Cohort risk groups and highest-risk patients</h3>
+      <div id="risk-patients"></div>
+
+      <h2><span class="secno">7.</span>Test suite</h2>
+      <p class="note" id="lvt-lead"></p>
+      <h3>Inputs (reproduce this run)</h3>
+      <div id="lvt-inputs"></div>
+      <h3 id="lvt-resh">Results</h3>
+      <div class="stats" id="lvt-stats"></div>
+      <div id="lvt-groups"></div>
+    </div>
+  </main>
+</div>
+
+<script src="lab_data.js" onerror="void 0"></script>
+<script>
+(function () {
+  "use strict";
+  var panel = document.getElementById("lab");
+  document.getElementById("open-lab").addEventListener("click", function () { panel.classList.add("open"); });
+  document.getElementById("lab-close").addEventListener("click", function () { panel.classList.remove("open"); });
+  window.addEventListener("keydown", function (e) { if (e.key === "Escape") panel.classList.remove("open"); });
+
+  // Live analysis: upload an .h5ad, run the engine on the server, re-render the report.
+  var srcEl = document.getElementById("lab-src");
+  if (window.LOCALE_LAB) srcEl.textContent = "demo: Basel breast-cancer cohort";
+  function runAnalysis(promise, busyLabel, doneLabel) {
+    panel.classList.add("busy"); srcEl.textContent = busyLabel;
+    promise
+      .then(function (r) { if (!r.ok) return r.text().then(function (t) { throw new Error(t || ("HTTP " + r.status)); }); return r.json(); })
+      .then(function (bundle) { window.renderLab(bundle); srcEl.textContent = doneLabel; panel.scrollTop = 0; })
+      .catch(function (err) {
+        srcEl.textContent = "";
+        alert("Analysis failed.\n\nLive analysis needs the engine backend running:\n  python scripts/serve.py\nThe hosted static demo shows the Basel cohort only.\n\n" + err.message);
+      })
+      .finally(function () { panel.classList.remove("busy"); });
+  }
+  document.getElementById("lab-upload").addEventListener("change", function (e) {
+    var file = e.target.files[0]; if (!file) return;
+    var fd = new FormData(); fd.append("file", file);
+    runAnalysis(fetch("/api/analyze", { method: "POST", body: fd }), "analyzing " + file.name + "...", "your data: " + file.name);
+    e.target.value = "";
+  });
+  document.getElementById("lab-example").addEventListener("click", function () {
+    runAnalysis(fetch("/api/example"), "running the engine on the example object...", "example: data/mock.h5ad");
+  });
+
+  var COMP = { tumor:"#c0392b", stroma:"#2e8b57", immune:"#2b6cb0", other:"#7d5ba6", endothelial:"#d08a3e", vascular:"#d08a3e" };
+  function esc(s){ var d=document.createElement("div"); d.textContent=String(s); return d.innerHTML; }
+  function compColor(k){ return COMP[k] || "#7d5ba6"; }
+
+  // Render (or re-render) the whole report from a LOCALE_LAB bundle (demo or uploaded).
+  window.renderLab = function (LAB) {
+  if (!LAB) { document.getElementById("lf-lead").textContent = "lab_data.js not loaded."; return; }
+
+  // Findings
+  var f = LAB.findings, c = f.cohort;
+  var niches = Object.keys(f.niches).map(function (k){ var n=f.niches[k]; n._id=k; return n; });
+  niches.sort(function (a,b){ return (a.q_fdr-b.q_fdr) || (Math.abs(Math.log(b.hazard_ratio))-Math.abs(Math.log(a.hazard_ratio))); });
+
+  var uploaded = LAB.source === "uploaded";
+  document.getElementById("lab-byline").innerHTML = uploaded
+    ? "Your uploaded object &middot; " + ((LAB.inputs && LAB.inputs.n_cells) ? LAB.inputs.n_cells.toLocaleString() + " cells &middot; " : "") + "analysed live by the Locale engine"
+    : "Basel breast-cancer cohort (Jackson &amp; Fischer, 2020) &middot; imaging mass cytometry &middot; pre-registered survival analysis";
+  document.getElementById("lf-lead").innerHTML = uploaded
+    ? "Live output of the Locale engine on <b>your uploaded object</b>. Spatial niches are detected across " +
+      "images, each niche's abundance is tested against survival with a Cox model where outcome columns exist, " +
+      "and every niche is put through the validation battery below. " + c.n_hypotheses_tested + " niches found."
+    : "Real output of the Locale engine on the <b>Basel breast-cancer cohort</b> (Jackson &amp; Fischer 2020). " +
+      "Spatial niches are detected across cores, then each niche's per-patient abundance is tested against overall " +
+      "survival with a Cox model. Hypotheses were <b>pre-registered</b> and p-values are corrected for testing " +
+      c.n_hypotheses_tested + " niches (Benjamini-Hochberg FDR + selection-aware).";
+
+  var stats = [
+    [c.n_patients, uploaded ? "patients / images" : "patients", ""],
+    [c.n_events, "deaths (events)", ""],
+    [c.n_hypotheses_tested, "niches found", uploaded ? "" : "pre-registered"]
+  ];
+  if (c.power != null) stats.push([(c.power*100).toFixed(0)+"%", "statistical power", "at α="+c.alpha]);
+  if (c.min_detectable_hr != null) stats.push([c.min_detectable_hr.toFixed(2), "min detectable HR", "given this cohort"]);
+  if (c.observed_best_p != null) stats.push([c.observed_best_p.toFixed(3), "best raw p",
+    c.p_selection_aware != null ? "selection-aware "+c.p_selection_aware.toFixed(2) : ""]);
+  document.getElementById("lf-cohort").innerHTML = stats.map(function (s){
+    return '<div class="stat"><div class="v">'+s[0]+'</div><div class="k">'+s[1]+'</div>'+(s[2]?'<div class="sub">'+s[2]+'</div>':'')+'</div>';
+  }).join("");
+
+  var LO=0.5, HI=2.0, lgLO=Math.log(LO), lgHI=Math.log(HI);
+  function xpct(hr){ return Math.max(0,Math.min(100,(Math.log(hr)-lgLO)/(lgHI-lgLO)*100)); }
+  document.getElementById("lf-forest").innerHTML = niches.map(function (n){
+    var risk = n.hazard_ratio >= 1;               // red = risk (HR>1), green = protective
+    var col = risk ? "#c0392b" : "#2e8b57";
+    var lo=xpct(n.ci_95[0]), hi=xpct(n.ci_95[1]), pt=xpct(n.hazard_ratio);
+    var sig = n.q_fdr<0.05 ? " *" : "";
+    var bar = '<div style="position:relative;height:22px">' +
+      '<div style="position:absolute;left:'+xpct(1)+'%;top:0;bottom:0;width:1px;background:#999"></div>' +
+      '<div style="position:absolute;top:10px;left:'+lo+'%;width:'+(hi-lo)+'%;height:2px;background:'+col+'"></div>' +
+      '<div style="position:absolute;top:10px;left:'+lo+'%;width:1px;height:8px;margin-top:-4px;background:'+col+'"></div>' +
+      '<div style="position:absolute;top:10px;left:'+hi+'%;width:1px;height:8px;margin-top:-4px;background:'+col+'"></div>' +
+      '<div style="position:absolute;top:5px;left:'+pt+'%;width:10px;height:10px;border-radius:50%;border:1.5px solid #fff;background:'+col+';box-shadow:0 0 0 1px '+col+';transform:translateX(-50%)"></div></div>';
+    return '<div class="frow"><div class="fname" title="'+esc(n.name)+'">'+esc(n.name)+sig+'</div>'+bar+
+      '<div class="fstat">HR '+n.hazard_ratio.toFixed(2)+' · q '+n.q_fdr.toFixed(2)+'</div></div>';
+  }).join("") +
+    '<div class="faxis"><div>&larr; better survival &middot; worse &rarr;</div><div class="ticks">' +
+    '<span style="left:'+xpct(0.5)+'%">0.5</span><span style="left:'+xpct(1)+'%">1.0</span>' +
+    '<span style="left:'+xpct(1.5)+'%">1.5</span><span style="left:'+xpct(2)+'%">2.0</span></div><div></div></div>';
+
+  document.getElementById("lf-cards").innerHTML = niches.map(function (n){
+    var col = n.hazard_ratio>=1 ? "var(--bad)" : "var(--good)";
+    var comp = n.composition_major || {};
+    var bar = Object.keys(comp).sort(function (a,b){ return comp[b]-comp[a]; }).map(function (k){
+      return '<span style="width:'+(comp[k]*100).toFixed(1)+'%;background:'+compColor(k)+'" title="'+esc(k)+' '+(comp[k]*100).toFixed(0)+'%"></span>';
+    }).join("");
+    var chips = (n.top_metaclusters||[]).map(function (m){ return '<span class="chip">'+esc(m)+'</span>'; }).join("");
+    return '<div class="card"><div class="ctop"><span class="nm">'+esc(n.name)+'</span>'+
+      '<span class="hr" style="color:'+col+'">HR '+n.hazard_ratio.toFixed(2)+'</span></div>'+
+      '<div class="cmeta">95% CI '+n.ci_95[0].toFixed(2)+' to '+n.ci_95[1].toFixed(2)+' · p '+n.p_raw.toFixed(3)+' · q '+n.q_fdr.toFixed(2)+'</div>'+
+      '<div class="compbar">'+bar+'</div>'+
+      '<div class="cmeta">'+(n.n_cells?n.n_cells.toLocaleString()+' cells · '+n.n_cores+' cores':'')+'</div>'+
+      '<div class="chips">'+chips+'</div></div>';
+  }).join("");
+
+  // Tests
+  // ---- patient risk model (inseparable from its verdict) ----
+  (function () {
+    var risk = LAB.risk;
+    var lead = document.getElementById("risk-lead"), vEl = document.getElementById("risk-verdict");
+    var sEl = document.getElementById("risk-stats"), cEl = document.getElementById("risk-coef");
+    var pEl = document.getElementById("risk-patients"), pH = document.getElementById("risk-pat-h");
+    if (!risk) {
+      lead.textContent = "Risk model not computed for this run.";
+      vEl.innerHTML = ""; sEl.innerHTML = ""; cEl.innerHTML = ""; pEl.innerHTML = ""; pH.style.display = "none"; return;
+    }
+    lead.innerHTML = "A multivariate Cox model over the niche abundances scores each patient's risk, reported " +
+      "<b>inseparably from its trust verdict</b>: a score is only actionable when the model shows out-of-fold " +
+      "discrimination and calibration. " + esc(risk.source_label || "Computed live on this cohort.");
+    var vclass = risk.verdict === "supported" ? "supported" : (risk.verdict === "insufficient evidence" ? "insufficient" : "noteval");
+    vEl.className = "verdict " + vclass;
+    vEl.innerHTML = '<span class="vlabel">Verdict: ' + esc(risk.verdict) + '</span><span class="vreason">' + esc(risk.verdict_reason || "") + "</span>";
+    var rs = [];
+    if (risk.c_index_cv != null) rs.push([risk.c_index_cv.toFixed(3), "c-index (out-of-fold)", risk.c_index_ci_95 ? "95% CI " + risk.c_index_ci_95[0].toFixed(2) + " to " + risk.c_index_ci_95[1].toFixed(2) : ""]);
+    if (risk.calibration_slope != null) rs.push([risk.calibration_slope.toFixed(2), "calibration slope", "1.00 = calibrated"]);
+    if (risk.n_train_patients != null) rs.push([risk.n_train_patients, "train patients", risk.n_events != null ? risk.n_events + " events" : ""]);
+    if (risk.cv_folds != null) rs.push([risk.cv_folds, "CV folds", (risk.covariates_adjusted && risk.covariates_adjusted.length) ? "adj: " + risk.covariates_adjusted.join(", ") : "unadjusted"]);
+    sEl.innerHTML = rs.map(function (s) { return '<div class="stat"><div class="v">' + s[0] + '</div><div class="k">' + s[1] + "</div>" + (s[2] ? '<div class="sub">' + s[2] + "</div>" : "") + "</div>"; }).join("");
+    var coefs = risk.coefficients || [];
+    if (coefs.length) {
+      var lo2 = 0.5, hi2 = 2; coefs.forEach(function (cf) { lo2 = Math.min(lo2, cf.ci_95[0]); hi2 = Math.max(hi2, cf.ci_95[1]); });
+      var LG = Math.log(Math.max(0.35, lo2)), HG = Math.log(Math.min(3, hi2));
+      var xr = function (hr) { return Math.max(0, Math.min(100, (Math.log(Math.max(0.35, Math.min(3, hr))) - LG) / (HG - LG) * 100)); };
+      cEl.innerHTML = coefs.map(function (cf) {
+        var col = cf.hr_per_sd >= 1 ? "#c0392b" : "#2e8b57";
+        var l = xr(cf.ci_95[0]), h = xr(cf.ci_95[1]), p = xr(cf.hr_per_sd);
+        var bar = '<div style="position:relative;height:22px">' +
+          '<div style="position:absolute;left:' + xr(1) + '%;top:0;bottom:0;width:1px;background:#999"></div>' +
+          '<div style="position:absolute;top:10px;left:' + l + '%;width:' + (h - l) + '%;height:2px;background:' + col + '"></div>' +
+          '<div style="position:absolute;top:5px;left:' + p + '%;width:10px;height:10px;border-radius:50%;border:1.5px solid #fff;background:' + col + ';box-shadow:0 0 0 1px ' + col + ';transform:translateX(-50%)"></div></div>';
+        return '<div class="frow"><div class="fname" title="' + esc(cf.name) + '">' + esc(cf.name) + "</div>" + bar +
+          '<div class="fstat">HR/SD ' + cf.hr_per_sd.toFixed(2) + " · p " + cf.p.toFixed(2) + "</div></div>";
+      }).join("") +
+        '<div class="faxis"><div>&larr; protective &middot; risk &rarr;</div><div class="ticks">' +
+        '<span style="left:' + xr(0.5) + '%">0.5</span><span style="left:' + xr(1) + '%">1.0</span><span style="left:' + xr(2) + '%">2.0</span></div><div></div></div>';
+    } else { cEl.innerHTML = '<div class="vsmall">No coefficients (model not evaluable on this object).</div>'; }
+    var g = risk.groups || {}, gt = (g.low || 0) + (g.intermediate || 0) + (g.high || 0);
+    var gbar = gt ? '<div class="rgroups"><span style="flex:' + (g.low || 0) + ';background:#2e8b57">low ' + (g.low || 0) + "</span>" +
+      '<span style="flex:' + (g.intermediate || 0) + ';background:#b8860b">intermediate ' + (g.intermediate || 0) + "</span>" +
+      '<span style="flex:' + (g.high || 0) + ';background:#c0392b">high ' + (g.high || 0) + "</span></div>" : "";
+    function prow(s) {
+      var col = s.risk_group === "high" ? "#c0392b" : s.risk_group === "low" ? "#2e8b57" : "#b8860b";
+      var top = (s.top || []).map(function (t) { return esc(t.name) + " (" + (t.contribution >= 0 ? "+" : "") + t.contribution.toFixed(2) + ")"; }).join(", ");
+      return "<tr><td>" + esc(s.patient_id || s.image_id || "?") + "</td><td>" + (s.risk_score >= 0 ? "+" : "") + s.risk_score.toFixed(3) + "</td>" +
+        "<td>" + Math.round(s.risk_percentile) + '</td><td class="rg" style="color:' + col + '">' + esc(s.risk_group) + "</td><td>" + top + "</td></tr>";
+    }
+    var tops = risk.top_patients || [], bots = risk.bottom_patients || [];
+    if (tops.length) {
+      pH.style.display = "";
+      pEl.innerHTML = gbar + '<table class="pat"><tr><th>patient</th><th>risk</th><th>pct</th><th>group</th><th>top contributing niches</th></tr>' +
+        tops.map(prow).join("") + bots.map(prow).join("") + "</table>" +
+        '<div class="vsmall" style="margin-top:6px">Highest- and lowest-scoring patients; each risk score is the sum of its niche contributions.' +
+        (risk.verdict !== "supported" ? " Because the verdict is <b>" + esc(risk.verdict) + "</b>, these scores are shown for transparency and are <b>not clinically actionable</b>." : "") + "</div>";
+    } else { pH.style.display = "none"; pEl.innerHTML = ""; }
+  })();
+
+  var m = LAB.meta || {}, tests = LAB.tests || [];
+  var hasTests = tests.length > 0;
+  document.getElementById("lvt-resh").style.display = hasTests ? "" : "none";
+  document.getElementById("lvt-lead").innerHTML = hasTests
+    ? "The suite that guards the engine and the MCP server. Every function is checked against the committed " +
+      "<b>mock cohort</b> and the shared schema, so the analysis can't silently drift."
+    : "This run analyzed your uploaded object; the box below records exactly what went in. The pytest suite " +
+      "(shown on the hosted demo) guards the engine code itself and runs with <code>pytest -q</code>.";
+
+  // the actual inputs the suite runs against
+  var inp = LAB.inputs;
+  if (inp) {
+    var shape = [];
+    if (inp.n_cells != null) shape.push(inp.n_cells.toLocaleString() + " cells");
+    if (inp.n_markers != null) shape.push(inp.n_markers + " protein markers");
+    if (inp.n_images != null) shape.push(inp.n_images + " IMC images");
+    if (inp.n_niches != null) shape.push(inp.n_niches + " niches");
+    if (inp.has_survival != null) shape.push(inp.has_survival ? "survival present" : "no survival");
+    var io = "<table class=\"io\">" +
+      "<tr><th>Command</th><td><code>" + esc(inp.command || "pytest -q") + "</code></td></tr>" +
+      "<tr><th>Input object</th><td><code>" + esc(inp.data_file || "") + "</code>" +
+        (shape.length ? " (" + shape.join(", ") + ")" : "") + "</td></tr>" +
+      (inp.cell_types && inp.cell_types.length
+        ? "<tr><th>Cell types</th><td>" + inp.cell_types.map(esc).join(", ") + "</td></tr>" : "") +
+      "<tr><th>Schema contract</th><td><code>" + esc(inp.schema || "") + "</code></td></tr>" +
+      "</table>" +
+      '<div class="vsmall">Every test loads this committed object and asserts against the Pydantic ' +
+      "schema, so results are reproducible from the repository alone.</div>";
+    document.getElementById("lvt-inputs").innerHTML = io;
+  }
+  if (hasTests) {
+    var tstats = [
+      [m.passed+"/"+m.total, "passing", m.failed ? m.failed+" failing" : "all green"],
+      [m.duration_s+"s", "wall time", ""],
+      [(m.files||[]).length, "test modules", ""],
+      [m.skipped||0, "skipped", ""]
+    ];
+    document.getElementById("lvt-stats").innerHTML = tstats.map(function (s,i){
+      var cls = i===0 && !m.failed ? "pass" : "";
+      return '<div class="stat"><div class="v '+cls+'">'+s[0]+'</div><div class="k">'+s[1]+'</div>'+(s[2]?'<div class="sub">'+s[2]+'</div>':'')+'</div>';
+    }).join("");
+    var byFile = {};
+    tests.forEach(function (t){ (byFile[t.file]=byFile[t.file]||[]).push(t); });
+    document.getElementById("lvt-groups").innerHTML = (m.files||[]).map(function (file){
+      var arr = byFile[file]||[];
+      var rows = arr.map(function (t){
+        var mark = t.outcome==="passed" ? "&#10003;" : t.outcome==="failed" ? "&#10007;" : "&#183;";
+        return '<div class="trow"><span class="dot">'+mark+'</span>'+
+          '<span class="tn">'+esc(t.label)+' <small>'+esc(t.name)+'</small></span>'+
+          '<span class="ms">'+t.ms+' ms</span></div>';
+      }).join("");
+      var pass = arr.filter(function (t){ return t.outcome==="passed"; }).length;
+      return '<div class="tfile"><h4>'+esc(file)+' <span class="count">'+pass+'/'+arr.length+' passing</span></h4>'+rows+'</div>';
+    }).join("");
+  } else {
+    document.getElementById("lvt-stats").innerHTML = "";
+    document.getElementById("lvt-groups").innerHTML = "";
+  }
+
+  // ---- engine graphs: enrichment heatmap, KM survival, validation ----
+  var eng = LAB.engine;
+  if (eng) {
+    // enrichment heatmap
+    document.getElementById("le-lead").innerHTML =
+      "Which cell types sit next to each other across the cohort, as squidpy neighborhood-enrichment " +
+      "z-scores against a permutation null. Red pairs co-locate more than chance; blue pairs avoid each " +
+      "other. " + esc(eng.cohort_label) + ".";
+    var ct = eng.enrichment.cell_types, Z = eng.enrichment.zscores, zmax = 0;
+    Z.forEach(function (r) { r.forEach(function (v) { zmax = Math.max(zmax, Math.abs(v)); }); });
+    zmax = zmax || 1;
+    function zcell(v) {
+      var t = Math.max(-1, Math.min(1, v / zmax)), a = Math.abs(t);
+      var L = Math.round(100 - 60 * a), hue = t >= 0 ? 6 : 212, sat = a < 0.04 ? 0 : 62;
+      return { bg: "hsl(" + hue + "," + sat + "%," + L + "%)", fg: L < 52 ? "#fff" : "#111" };
+    }
+    var h = "<tr><th></th>" + ct.map(function (c) { return '<th class="col"><span>' + esc(c) + "</span></th>"; }).join("") + "</tr>";
+    Z.forEach(function (row, i) {
+      h += '<tr><th class="row">' + esc(ct[i]) + "</th>" + row.map(function (v, j) {
+        var c = zcell(v);
+        return '<td style="background:' + c.bg + ";color:" + c.fg + '" title="' + esc(ct[i]) + " to " + esc(ct[j]) + '">' + v.toFixed(1) + "</td>";
+      }).join("") + "</tr>";
+    });
+    document.getElementById("le-heat").innerHTML = h;
+
+    // KM survival curves
+    document.getElementById("ls-lead").innerHTML =
+      "Kaplan-Meier survival for patients with <b>high</b> vs <b>low</b> abundance of each niche " +
+      "(median split), from the Cox/KM engine. " + esc(eng.cohort_label) + ".";
+    function kmSvg(km) {
+      var W = 280, H = 118, p = 6, tmax = km.time[km.time.length - 1] || 1;
+      function ln(a, st, dash) {
+        var pts = a.map(function (v, i) {
+          return (p + (km.time[i] / tmax) * (W - 2 * p)).toFixed(1) + "," + (p + (1 - Math.max(0, Math.min(1, v))) * (H - 2 * p)).toFixed(1);
+        }).join(" ");
+        return '<polyline fill="none" stroke="' + st + '" stroke-width="1.8"' + (dash ? ' stroke-dasharray="3 2"' : "") + ' points="' + pts + '"/>';
+      }
+      return '<svg width="100%" viewBox="0 0 ' + W + " " + H + '">' +
+        '<line x1="' + p + '" y1="' + (H - p) + '" x2="' + (W - p) + '" y2="' + (H - p) + '" stroke="#bbb"/>' +
+        '<line x1="' + p + '" y1="' + p + '" x2="' + p + '" y2="' + (H - p) + '" stroke="#bbb"/>' +
+        ln(km.high, "#2b6cb0", false) + ln(km.low, "#d08a3e", true) + "</svg>";
+    }
+    document.getElementById("ls-cards").innerHTML = (eng.survival || []).map(function (s) {
+      var hc = s.hazard_ratio >= 1 ? "#c0392b" : "#2e8b57";
+      return '<div class="kmcard"><div class="ktop"><span class="knm">' + esc(s.name) + "</span>" +
+        '<span class="khr" style="color:' + hc + '">HR ' + s.hazard_ratio.toFixed(2) + "</span></div>" +
+        '<div class="vsmall">p ' + s.pvalue.toFixed(3) + " &middot; n=" + s.n_patients + "</div>" + kmSvg(s.km) +
+        '<div class="kmlegend"><span><i style="border-top-color:#2b6cb0"></i>high abundance</span>' +
+        '<span><i class="d" style="border-top-color:#d08a3e"></i>low</span></div></div>';
+    }).join("") || '<div class="vsmall">No survival-viable niches in this cohort.</div>';
+
+    // validation
+    var val = eng.validation, sh = val.shuffle, stab = val.stability_ari;
+    document.getElementById("lvd-lead").innerHTML =
+      "How we prove the niches are real signal, not clustering artifacts. " + esc(eng.cohort_label) + ".";
+    document.getElementById("lvd-top").innerHTML =
+      '<div class="vcard"><div class="vh">Spatial null control ' +
+        '<span class="badge ' + (sh.collapsed ? "ok" : "no") + '">' + (sh.collapsed ? "signal collapses" : "not collapsed") + "</span></div>" +
+        '<div class="vsmall">Destroy the spatial structure (shuffle) and the niche signal should vanish. ' +
+        'Real effect <b style="color:var(--ink)">' + sh.real_effect.toFixed(3) + "</b> vs shuffled " +
+        sh.null_mean.toFixed(3) + " ± " + sh.null_std.toFixed(3) + " · empirical p " + sh.empirical_p.toFixed(3) + "</div></div>" +
+      '<div class="vcard"><div class="vh">Cluster stability (ARI)</div>' +
+        '<div class="vbar"><i style="width:' + (stab * 100).toFixed(0) + "%;background:" + (stab >= 0.5 ? "var(--good)" : "var(--warn)") + '"></i></div>' +
+        '<div class="vsmall">Mean adjusted Rand index <b style="color:var(--ink)">' + stab.toFixed(2) +
+        "</b> across subsampled re-clusterings (1.0 = identical niches every run).</div></div>";
+    document.getElementById("lvd-markers").innerHTML = (val.markers || []).map(function (m) {
+      var ev = m.corr != null
+        ? 'marker-composition correlation <b style="color:var(--ink)">' + m.corr.toFixed(2) + "</b>"
+        : "";
+      var top = (m.top || []).length ? '<div class="chips" style="margin-top:8px">' +
+        m.top.slice(0, 6).map(function (x) { return '<span class="chip">' + esc(x) + "</span>"; }).join("") + "</div>" : "";
+      return '<div class="vcard"><div class="mk"><span class="badge ' + (m.passed ? "ok" : "no") + '">' +
+        (m.passed ? "pass" : "check") + '</span><b>Niche ' + m.niche_id + "</b></div>" +
+        '<div class="vsmall">' + ev + "</div>" + top + "</div>";
+    }).join("");
+  } else {
+    ["le-lead", "ls-lead", "lvd-lead"].forEach(function (id) {
+      document.getElementById(id).textContent = "Engine graphs unavailable. Rebuild lab_data.js with the engine env.";
+    });
+  }
+
+  // ---- real Basel figures (scripts/make_figures.py) into their tabs ----
+  var FIGTAB = { find:"figs-find", enrich:"figs-enrich", surv:"figs-surv", valid:"figs-valid" };
+  var byTab = {};
+  (LAB.figures || []).forEach(function (f) { (byTab[f.tab] = byTab[f.tab] || []).push(f); });
+  Object.keys(FIGTAB).forEach(function (tab) {
+    var el = document.getElementById(FIGTAB[tab]); if (!el) return;
+    el.innerHTML = (byTab[tab] || []).map(function (f) {
+      return '<div class="fig"><div class="ftitle"><span class="ftag">BASEL COHORT</span>' + esc(f.title) + "</div>" +
+        '<img src="assets/figures/' + f.file + '" alt="' + esc(f.title) + '" loading="lazy"/>' +
+        '<div class="fcap">' + esc(f.cap) + "</div></div>";
+    }).join("");
+  });
+
+  // ---- interactive k-sweep chart (Basel stability ARI vs k) ----
+  var ks = LAB.k_sweep;
+  if (ks) {
+    var W = 560, H = 190, pl = 44, pr = 12, pt = 12, pb = 34;
+    var kmin = Math.min.apply(null, ks.ks), kmax = Math.max.apply(null, ks.ks);
+    var amax = Math.max.apply(null, ks.ari), amin = Math.min.apply(null, ks.ari);
+    var lo = Math.max(0, amin - 0.05), hi = amax + 0.05;
+    function X(k) { return pl + (k - kmin) / (kmax - kmin) * (W - pl - pr); }
+    function Y(a) { return pt + (1 - (a - lo) / (hi - lo)) * (H - pt - pb); }
+    var grid = [0, 0.25, 0.5, 0.75, 1].map(function (t) {
+      var a = lo + (hi - lo) * t, y = Y(a);
+      return '<line x1="' + pl + '" y1="' + y + '" x2="' + (W - pr) + '" y2="' + y + '" stroke="#e0e0e0"/>' +
+        '<text x="' + (pl - 7) + '" y="' + (y + 3) + '" fill="#555" font-size="10" text-anchor="end">' + a.toFixed(2) + "</text>";
+    }).join("");
+    var xlab = ks.ks.map(function (k) {
+      return '<text x="' + X(k) + '" y="' + (H - 14) + '" fill="#555" font-size="10" text-anchor="middle">' + k + "</text>";
+    }).join("");
+    var dots = ks.ks.map(function (k, i) { return '<circle cx="' + X(k) + '" cy="' + Y(ks.ari[i]) + '" r="3.5" fill="#2b6cb0"/>'; }).join("");
+    var poly = ks.ks.map(function (k, i) { return X(k) + "," + Y(ks.ari[i]); }).join(" ");
+    document.getElementById("ksweep").innerHTML =
+      '<svg width="100%" viewBox="0 0 ' + W + " " + H + '">' + grid + xlab +
+      '<line x1="' + X(ks.chosen) + '" y1="' + pt + '" x2="' + X(ks.chosen) + '" y2="' + (H - pb) + '" stroke="#c0392b" stroke-width="1.5" stroke-dasharray="4 3"/>' +
+      '<polyline fill="none" stroke="#2b6cb0" stroke-width="1.8" points="' + poly + '"/>' + dots +
+      '<text x="' + (pl + (W - pl - pr) / 2) + '" y="' + (H - 1) + '" fill="#555" font-size="10" text-anchor="middle">k (number of niches)</text>' +
+      "</svg>" +
+      '<div class="vsmall" style="margin-top:8px">Subsample stability (ARI) as the niche count k varies. ' +
+      'k=<b style="color:var(--ink)">' + ks.chosen + "</b> maximizes stability (ARI " + amax.toFixed(2) +
+      ") and is the chosen number of niches. From scripts/run_basel_niches.py on the Basel cohort.</div>";
+  } else {
+    var nk = (LAB.inputs && LAB.inputs.n_niches) || "the chosen";
+    document.getElementById("ksweep").innerHTML =
+      '<div class="vsmall">Niches were fixed at k=<b style="color:var(--ink)">' + nk +
+      "</b> for this run; a full stability sweep runs offline on a larger cohort.</div>";
+  }
+
+  // single page, no tabs; everything is stacked as one scrollable report.
+  };  // end renderLab
+
+  if (window.LOCALE_LAB) window.renderLab(window.LOCALE_LAB);
 })();
 </script>
 </body>
